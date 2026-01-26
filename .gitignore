@@ -1,0 +1,90 @@
+# Python
+# --------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Virtual Environment
+# -------------------
+venv/
+env/
+ENV/
+.venv
+
+# PySide6 / Qt
+# ------------
+*.ui.bak
+*.qmlc
+*.jsc
+*.moc
+*.qm
+*.pro.user*
+*.qbs.user*
+CMakeLists.txt.user*
+
+# Generated UI files (optional - uncomment if you want to regenerate them)
+# ui_*.py
+
+# Build artifacts
+# ---------------
+build/
+dist/
+*.spec
+!pysidedeploy.spec
+*.exe
+!ffmpeg.exe
+*.dll
+*.pyd
+*.app
+*.dmg
+
+# IDE
+# ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Qt Creator
+# ----------
+*.pro.user*
+*.qbs.user*
+CMakeLists.txt.user*
+.qmake.cache
+.qmake.stash
+
+# Temporary files
+# ---------------
+*.autosave
+*.bak
+*.tmp
+*.log
+*.crash
+nuitka-crash-report.xml
+*.lnk
+
+# Old C++ files (if any remain)
+# -----------------------------
+*.cpp
+*.h
+*.pro
+!pysidedeploy.spec
+
+# User data (optional - uncomment if you don't want to track presets)
+# presets.xml
+
+# Deployment artifacts
+# -------------------
+FFMPEG GUI.dist/
+deployment.exe
+pyside_app_demo.exe
