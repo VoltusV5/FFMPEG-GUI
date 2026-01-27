@@ -80,6 +80,11 @@
          <string>libx265</string>
         </property>
        </item>
+       <item>
+        <property name="text">
+         <string>copy</string>
+        </property>
+       </item>
       </widget>
      </item>
     </layout>
@@ -281,6 +286,20 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="exportPresetButton">
+       <property name="text">
+        <string>Экспорт пресетов</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="importPresetButton">
+       <property name="text">
+        <string>Импорт пресетов</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
    <widget class="QLabel" name="label_7">
@@ -309,6 +328,22 @@
      <bool>true</bool>
     </property>
    </widget>
+   <widget class="QPushButton" name="openOutputFolderButton">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>400</y>
+      <width>148</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Открыть папку</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -316,7 +351,7 @@
      <x>0</x>
      <y>0</y>
      <width>921</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>

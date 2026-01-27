@@ -1,2 +1,2 @@
 <?xml version='1.0' encoding='utf-8'?>
-<presets><preset name="preset_1"><codec>libx265</codec><resolution>480p</resolution><container>mkv</container></preset></presets>
+<presets><preset name="preset_1"><codec>libx265</codec><resolution>480p</resolution><container>mkv</container></preset><preset name="1080p mkv"><codec>libx265</codec><resolution>1080p</resolution><container>mkv</container></preset><preset name="yesyes"><codec>libx264</codec><resolution>480p</resolution><container>mkv</container><description>mkv</description></preset></presets>

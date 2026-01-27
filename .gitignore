@@ -1,3 +1,9 @@
+# video/audio:
+*.mkv
+*.mp4
+*.mov
+
+
 # Python
 # --------
 __pycache__/

@@ -68,6 +68,7 @@ class Ui_MainWindow(object):
         self.codecCombo = QComboBox(self.horizontalLayoutWidget_2)
         self.codecCombo.addItem("")
         self.codecCombo.addItem("")
+        self.codecCombo.addItem("")
         self.codecCombo.setObjectName(u"codecCombo")
 
         self.horizontalLayout_3.addWidget(self.codecCombo)
@@ -179,6 +180,16 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_8.addWidget(self.deletePresetButton)
 
+        self.exportPresetButton = QPushButton(self.horizontalLayoutWidget_7)
+        self.exportPresetButton.setObjectName(u"exportPresetButton")
+
+        self.horizontalLayout_8.addWidget(self.exportPresetButton)
+
+        self.importPresetButton = QPushButton(self.horizontalLayoutWidget_7)
+        self.importPresetButton.setObjectName(u"importPresetButton")
+
+        self.horizontalLayout_8.addWidget(self.importPresetButton)
+
         self.label_7 = QLabel(self.centralwidget)
         self.label_7.setObjectName(u"label_7")
         self.label_7.setGeometry(QRect(30, 460, 131, 20))
@@ -186,10 +197,14 @@ class Ui_MainWindow(object):
         self.logDisplay.setObjectName(u"logDisplay")
         self.logDisplay.setGeometry(QRect(30, 500, 871, 151))
         self.logDisplay.setReadOnly(True)
+        self.openOutputFolderButton = QPushButton(self.centralwidget)
+        self.openOutputFolderButton.setObjectName(u"openOutputFolderButton")
+        self.openOutputFolderButton.setEnabled(False)
+        self.openOutputFolderButton.setGeometry(QRect(30, 400, 148, 24))
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 921, 25))
+        self.menubar.setGeometry(QRect(0, 0, 921, 22))
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
@@ -207,6 +222,7 @@ class Ui_MainWindow(object):
         self.label_2.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u0434\u0435\u043a:", None))
         self.codecCombo.setItemText(0, QCoreApplication.translate("MainWindow", u"libx264", None))
         self.codecCombo.setItemText(1, QCoreApplication.translate("MainWindow", u"libx265", None))
+        self.codecCombo.setItemText(2, QCoreApplication.translate("MainWindow", u"copy", None))
 
         self.label_3.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043d\u0442\u0435\u0439\u043d\u0435\u0440:", None))
         self.containerCombo.setItemText(0, QCoreApplication.translate("MainWindow", u"mp4", None))
@@ -226,6 +242,9 @@ class Ui_MainWindow(object):
         self.savePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.loadPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.deletePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
+        self.exportPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
+        self.importPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"\u041b\u043e\u0433 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f:", None))
+        self.openOutputFolderButton.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0430\u043f\u043a\u0443", None))
     # retranslateUi
 

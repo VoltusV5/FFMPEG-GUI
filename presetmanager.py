@@ -6,7 +6,7 @@ class PresetManager:
         # Путь к presets.xml рядом с exe или скриптом
         self.presets_file = os.path.join(os.path.dirname(__file__), 'presets.xml')
 
-    def savePreset(self, name, codec, resolution, container):
+    def savePreset(self, name, codec, resolution, container, description=""):
         if os.path.exists(self.presets_file):
             tree = ET.parse(self.presets_file)
             root = tree.getroot()
@@ -25,6 +25,8 @@ class PresetManager:
         ET.SubElement(preset_elem, 'codec').text = codec
         ET.SubElement(preset_elem, 'resolution').text = resolution
         ET.SubElement(preset_elem, 'container').text = container
+        desc_elem = ET.SubElement(preset_elem, 'description')
+        desc_elem.text = description if description else ""
 
         tree.write(self.presets_file, encoding='utf-8', xml_declaration=True)
 
@@ -49,6 +51,8 @@ class PresetManager:
                 result['codec'] = preset.find('codec').text
                 result['resolution'] = preset.find('resolution').text
                 result['container'] = preset.find('container').text
+                desc_elem = preset.find('description')
+                result['description'] = desc_elem.text if desc_elem is not None and desc_elem.text else ""
                 break
         return result
 
