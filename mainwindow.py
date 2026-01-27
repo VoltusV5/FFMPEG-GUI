@@ -2,9 +2,12 @@ import sys
 import os
 import platform
 import shlex
-from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QInputDialog
-from PySide6.QtCore import QProcess
+import re
+from PySide6.QtWidgets import QMainWindow, QFileDialog, QMessageBox, QInputDialog, QVBoxLayout
+from PySide6.QtCore import QProcess, QUrl, Qt, QTimer
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtMultimediaWidgets import QVideoWidget
 from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
 from presetmanager import PresetManager
 
@@ -22,6 +25,17 @@ class MainWindow(QMainWindow):
         self.lastOutputFile = ""  # Сохраняем путь к последнему выходному файлу
         self.commandManuallyEdited = False  # Флаг ручного редактирования команды
         self.lastGeneratedCommand = ""  # Последняя сгенерированная команда
+        
+        # Переменные для прогресса кодирования
+        self.encodingProgress = 0  # 0-100
+        self.totalFrames = 0  # Общее количество кадров
+        self.currentFrame = 0  # Текущий кадр
+        self.videoDuration = 0  # Длительность видео в секундах
+        self.encodingDuration = 0  # Длительность кодирования в секундах
+        self.isPaused = False  # Флаг паузы
+        
+        # Инициализация медиаплеера для предпросмотра
+        self.initVideoPreview()
 
         # Подключение сигналов
         self.ui.browseButton.clicked.connect(self.selectInputFile)
@@ -39,20 +53,71 @@ class MainWindow(QMainWindow):
         self.ui.importPresetButton.clicked.connect(self.importPreset)
         self.ui.copyCmdButton.clicked.connect(self.copyCommand)
         self.ui.openOutputFolderButton.clicked.connect(self.openOutputFolder)
+        
+        # Подключение кнопок предпросмотра (если они существуют)
+        if hasattr(self.ui, 'videoPlayButton'):
+            self.ui.videoPlayButton.clicked.connect(self.toggleVideoPlayback)
+        if hasattr(self.ui, 'videoStopButton'):
+            self.ui.videoStopButton.clicked.connect(self.stopVideo)
+        if hasattr(self.ui, 'videoMuteButton'):
+            self.ui.videoMuteButton.clicked.connect(self.toggleVideoMute)
+        if hasattr(self.ui, 'videoTimelineSlider'):
+            self.ui.videoTimelineSlider.sliderMoved.connect(self.seekVideo)
+            self.ui.videoTimelineSlider.sliderPressed.connect(self.pauseVideoForSeek)
+            self.ui.videoTimelineSlider.sliderReleased.connect(self.resumeVideoAfterSeek)
+        
+        # Подключение кнопки паузы
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.clicked.connect(self.togglePauseEncoding)
 
         self.ffmpegProcess.readyReadStandardOutput.connect(self.readProcessOutput)
         self.ffmpegProcess.readyReadStandardError.connect(self.readProcessOutput)
         self.ffmpegProcess.finished.connect(self.processFinished)
         
+        # Таймер для обновления времени видео
+        self.videoUpdateTimer = QTimer(self)
+        self.videoUpdateTimer.timeout.connect(self.updateVideoTime)
+        self.videoUpdateTimer.start(100)  # Обновление каждые 100мс
+        
         # Инициализация статуса
         self.updateStatus("Готов")
 
+    def initVideoPreview(self):
+        """Инициализирует медиаплеер для предпросмотра видео"""
+        try:
+            # Создаём медиаплеер
+            self.mediaPlayer = QMediaPlayer(self)
+            self.audioOutput = QAudioOutput(self)
+            self.mediaPlayer.setAudioOutput(self.audioOutput)
+            
+            # Создаём виджет для видео (если он существует в UI)
+            if hasattr(self.ui, 'videoPreviewWidget'):
+                self.videoWidget = QVideoWidget(self.ui.videoPreviewWidget)
+                layout = QVBoxLayout(self.ui.videoPreviewWidget)
+                layout.setContentsMargins(0, 0, 0, 0)
+                layout.addWidget(self.videoWidget)
+                self.mediaPlayer.setVideoOutput(self.videoWidget)
+            
+            # Подключаем сигналы медиаплеера
+            self.mediaPlayer.durationChanged.connect(self.onVideoDurationChanged)
+            self.mediaPlayer.positionChanged.connect(self.onVideoPositionChanged)
+            self.mediaPlayer.playbackStateChanged.connect(self.onVideoPlaybackStateChanged)
+            
+            # Изначально звук включен
+            self.audioOutput.setVolume(1.0)
+            self.isMuted = False
+        except Exception as e:
+            print(f"Ошибка инициализации медиаплеера: {e}")
+            self.mediaPlayer = None
+    
     def selectInputFile(self):
         self.inputFile = QFileDialog.getOpenFileName(self, "Выберите видео", "", "Видео (*.mp4 *.mkv *.avi)")[0]
         if self.inputFile:
             self.ui.inputFileEdit.setText(self.inputFile)
             self.commandManuallyEdited = False  # Сбрасываем флаг при выборе нового файла
             self.updateCommandFromGUI()
+            # Загружаем видео в предпросмотр
+            self.loadVideoForPreview()
 
     def updateCustomResolutionVisibility(self):
         isCustom = self.ui.resolutionCombo.currentText() == "custom"
@@ -230,6 +295,25 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'openOutputFolderButton'):
             self.ui.openOutputFolderButton.setEnabled(False)
         
+        # Активируем кнопку паузы
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.setEnabled(True)
+            self.ui.pauseResumeButton.setText("⏸ Пауза")
+        
+        # Сбрасываем прогресс
+        self.encodingProgress = 0
+        self.currentFrame = 0
+        self.encodingDuration = 0
+        if hasattr(self.ui, 'encodingProgressBar'):
+            self.ui.encodingProgressBar.setValue(0)
+        
+        # Получаем длительность видео для расчёта прогресса
+        if self.mediaPlayer and self.inputFile:
+            # Пытаемся получить длительность из медиаплеера
+            if self.videoDuration <= 0:
+                # Если длительность неизвестна, пытаемся получить через FFprobe
+                self._getVideoDuration()
+        
         # Запускаем FFmpeg с аргументами из команды
         self.ffmpegProcess.start("ffmpeg", args)
     
@@ -248,8 +332,10 @@ class MainWindow(QMainWindow):
         
         if out:
             self._appendLog(out, 'info')
+            self._parseProgressFromLog(out)
         if err:
             self._appendLog(err, 'error')
+            self._parseProgressFromLog(err)
     
     def _appendLog(self, text, source='info'):
         """Добавляет лог с правильной цветовой схемой"""
@@ -298,9 +384,298 @@ class MainWindow(QMainWindow):
         
         # По умолчанию - чёрный для stdout, серый для stderr
         return 'black' if source == 'info' else '#666666'
+    
+    def _parseProgressFromLog(self, line):
+        """Парсит прогресс кодирования из логов FFmpeg"""
+        # FFmpeg выводит прогресс в формате: frame=  123 fps= 25 q=28.0 size=    1024kB time=00:00:05.00 bitrate= 1638.4kbits/s
+        # Ищем frame= и time=
+        
+        # Парсим frame
+        frame_match = re.search(r'frame=\s*(\d+)', line)
+        if frame_match:
+            self.currentFrame = int(frame_match.group(1))
+        
+        # Парсим time (время кодирования)
+        time_match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
+        if time_match:
+            hours = int(time_match.group(1))
+            minutes = int(time_match.group(2))
+            seconds = int(time_match.group(3))
+            centiseconds = int(time_match.group(4))
+            self.encodingDuration = hours * 3600 + minutes * 60 + seconds + centiseconds / 100.0
+        
+        # Обновляем прогресс
+        self.updateEncodingProgress()
+    
+    def updateEncodingProgress(self):
+        """Обновляет прогресс-бар и таймлайн на основе текущего прогресса"""
+        if self.videoDuration > 0 and self.encodingDuration > 0:
+            # Вычисляем процент прогресса
+            progress = min(100, int((self.encodingDuration / self.videoDuration) * 100))
+            self.encodingProgress = progress
+            
+            # Обновляем прогресс-бар
+            if hasattr(self.ui, 'encodingProgressBar'):
+                self.ui.encodingProgressBar.setValue(progress)
+            
+            # Обновляем таймлайн предпросмотра (если есть)
+            if hasattr(self.ui, 'videoTimelineSlider') and self.videoDuration > 0:
+                # Обновляем только если не происходит ручная перемотка
+                if not self.ui.videoTimelineSlider.isSliderDown():
+                    max_value = self.ui.videoTimelineSlider.maximum()
+                    timeline_position = int((self.encodingDuration / self.videoDuration) * max_value)
+                    self.ui.videoTimelineSlider.setValue(timeline_position)
+    
+    def loadVideoForPreview(self):
+        """Загружает видео в медиаплеер для предпросмотра"""
+        if not self.mediaPlayer or not self.inputFile:
+            return
+        
+        try:
+            # Загружаем видео
+            url = QUrl.fromLocalFile(self.inputFile)
+            self.mediaPlayer.setSource(url)
+            
+            # Получаем длительность видео (будет установлена асинхронно)
+            # Обновим таймлайн когда длительность станет известна
+        except Exception as e:
+            print(f"Ошибка загрузки видео: {e}")
+    
+    def toggleVideoPlayback(self):
+        """Переключает воспроизведение/паузу видео"""
+        if not self.mediaPlayer:
+            return
+        
+        if self.mediaPlayer.playbackState() == QMediaPlayer.PlayingState:
+            self.mediaPlayer.pause()
+            if hasattr(self.ui, 'videoPlayButton'):
+                self.ui.videoPlayButton.setText("▶ Play")
+        else:
+            self.mediaPlayer.play()
+            if hasattr(self.ui, 'videoPlayButton'):
+                self.ui.videoPlayButton.setText("⏸ Pause")
+    
+    def stopVideo(self):
+        """Останавливает воспроизведение видео"""
+        if not self.mediaPlayer:
+            return
+        
+        self.mediaPlayer.stop()
+        if hasattr(self.ui, 'videoPlayButton'):
+            self.ui.videoPlayButton.setText("▶ Play")
+    
+    def toggleVideoMute(self):
+        """Переключает звук видео"""
+        if not self.audioOutput:
+            return
+        
+        self.isMuted = not self.isMuted
+        self.audioOutput.setMuted(self.isMuted)
+        
+        if hasattr(self.ui, 'videoMuteButton'):
+            self.ui.videoMuteButton.setText("🔇" if self.isMuted else "🔊")
+    
+    def seekVideo(self, position):
+        """Перематывает видео на указанную позицию"""
+        if not self.mediaPlayer or self.videoDuration <= 0:
+            return
+        
+        # Преобразуем позицию слайдера в миллисекунды
+        max_value = self.ui.videoTimelineSlider.maximum()
+        time_ms = int((position / max_value) * self.videoDuration * 1000)
+        self.mediaPlayer.setPosition(time_ms)
+    
+    def pauseVideoForSeek(self):
+        """Временно ставит видео на паузу при перемотке"""
+        if not self.mediaPlayer:
+            return
+        
+        # Сохраняем состояние воспроизведения
+        self.wasPlayingBeforeSeek = (self.mediaPlayer.playbackState() == QMediaPlayer.PlayingState)
+        if self.wasPlayingBeforeSeek:
+            self.mediaPlayer.pause()
+    
+    def resumeVideoAfterSeek(self):
+        """Возобновляет воспроизведение после перемотки"""
+        if not self.mediaPlayer:
+            return
+        
+        if hasattr(self, 'wasPlayingBeforeSeek') and self.wasPlayingBeforeSeek:
+            self.mediaPlayer.play()
+    
+    def onVideoDurationChanged(self, duration):
+        """Обработчик изменения длительности видео"""
+        self.videoDuration = duration / 1000.0  # Конвертируем в секунды
+        
+        # Обновляем максимальное значение слайдера
+        if hasattr(self.ui, 'videoTimelineSlider'):
+            self.ui.videoTimelineSlider.setMaximum(1000)
+        
+        # Обновляем отображение времени
+        self.updateVideoTime()
+    
+    def onVideoPositionChanged(self, position):
+        """Обработчик изменения позиции видео"""
+        if not hasattr(self.ui, 'videoTimelineSlider') or self.videoDuration <= 0:
+            return
+        
+        # Обновляем слайдер только если не происходит ручная перемотка
+        if not self.ui.videoTimelineSlider.isSliderDown():
+            max_value = self.ui.videoTimelineSlider.maximum()
+            slider_position = int((position / 1000.0 / self.videoDuration) * max_value)
+            self.ui.videoTimelineSlider.setValue(slider_position)
+    
+    def onVideoPlaybackStateChanged(self, state):
+        """Обработчик изменения состояния воспроизведения"""
+        if hasattr(self.ui, 'videoPlayButton'):
+            if state == QMediaPlayer.PlayingState:
+                self.ui.videoPlayButton.setText("⏸ Pause")
+            else:
+                self.ui.videoPlayButton.setText("▶ Play")
+    
+    def updateVideoTime(self):
+        """Обновляет отображение времени видео"""
+        if not hasattr(self.ui, 'videoTimeLabel') or not self.mediaPlayer:
+            return
+        
+        current_pos = self.mediaPlayer.position() / 1000.0  # в секундах
+        duration = self.videoDuration
+        
+        current_str = self._formatTime(current_pos)
+        duration_str = self._formatTime(duration)
+        
+        self.ui.videoTimeLabel.setText(f"{current_str} / {duration_str}")
+    
+    def _formatTime(self, seconds):
+        """Форматирует время в формат MM:SS или HH:MM:SS"""
+        if seconds < 0:
+            seconds = 0
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        
+        if hours > 0:
+            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+        else:
+            return f"{minutes:02d}:{secs:02d}"
+    
+    def togglePauseEncoding(self):
+        """Переключает паузу/возобновление кодирования"""
+        if not self.ffmpegProcess or self.ffmpegProcess.state() == QProcess.NotRunning:
+            return
+        
+        if self.isPaused:
+            # Возобновляем
+            self.resumeEncoding()
+        else:
+            # Ставим на паузу
+            self.pauseEncoding()
+    
+    def pauseEncoding(self):
+        """Приостанавливает кодирование"""
+        if self.ffmpegProcess.state() != QProcess.Running:
+            return
+        
+        self.isPaused = True
+        
+        # Сохраняем текущую команду для возобновления
+        self.pausedCommand = self.ui.commandDisplay.toPlainText()
+        self.pausedArgs = self._parseCommand(self.pausedCommand)
+        
+        # Пытаемся приостановить процесс через сигналы
+        try:
+            if platform.system() == "Windows":
+                # На Windows QProcess не поддерживает SIGSTOP напрямую
+                # Используем альтернативный метод через приостановку потоков
+                # Это требует дополнительных библиотек (pywin32) или ctypes
+                # Для упрощения показываем предупреждение
+                QMessageBox.information(self, "Информация", 
+                    "Пауза кодирования на Windows работает через остановку процесса.\n"
+                    "При возобновлении кодирование начнётся заново.")
+                self.ffmpegProcess.kill()
+            else:
+                # На Linux/Mac используем SIGSTOP
+                import signal
+                try:
+                    os.kill(self.ffmpegProcess.processId(), signal.SIGSTOP)
+                except (ProcessLookupError, PermissionError) as e:
+                    QMessageBox.warning(self, "Ошибка", 
+                        f"Не удалось приостановить процесс: {str(e)}")
+                    self.isPaused = False
+                    return
+        except Exception as e:
+            QMessageBox.warning(self, "Предупреждение", 
+                f"Ошибка при паузе: {str(e)}")
+            self.isPaused = False
+            return
+        
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.setText("▶ Возобновить")
+        self.updateStatus("Приостановлено...")
+    
+    def resumeEncoding(self):
+        """Возобновляет кодирование"""
+        if not self.isPaused:
+            return
+        
+        try:
+            if platform.system() == "Windows":
+                # На Windows перезапускаем процесс с сохранённой командой
+                # Это не идеально, но работает
+                if hasattr(self, 'pausedArgs') and self.pausedArgs:
+                    self.ffmpegProcess.start("ffmpeg", self.pausedArgs)
+                else:
+                    QMessageBox.warning(self, "Ошибка", "Не удалось восстановить команду")
+                    self.isPaused = False
+                    return
+            else:
+                # На Linux/Mac используем SIGCONT
+                import signal
+                try:
+                    os.kill(self.ffmpegProcess.processId(), signal.SIGCONT)
+                except (ProcessLookupError, PermissionError) as e:
+                    QMessageBox.warning(self, "Ошибка", 
+                        f"Не удалось возобновить процесс: {str(e)}")
+                    return
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка", 
+                f"Ошибка при возобновлении: {str(e)}")
+            return
+        
+        self.isPaused = False
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.setText("⏸ Пауза")
+        self.updateStatus("Выполняется...")
 
+    def _getVideoDuration(self):
+        """Получает длительность видео через FFprobe"""
+        if not self.inputFile:
+            return
+        
+        try:
+            import subprocess
+            # Используем ffprobe для получения длительности
+            cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', 
+                   '-of', 'default=noprint_wrappers=1:nokey=1', self.inputFile]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                duration_str = result.stdout.strip()
+                if duration_str:
+                    self.videoDuration = float(duration_str)
+        except Exception as e:
+            print(f"Не удалось получить длительность видео: {e}")
+    
     def processFinished(self, exitCode, exitStatus):
         self.ui.runButton.setEnabled(True)
+        
+        # Отключаем кнопку паузы
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.setEnabled(False)
+            self.ui.pauseResumeButton.setText("⏸ Пауза")
+        
+        # Сбрасываем прогресс
+        if hasattr(self.ui, 'encodingProgressBar'):
+            self.ui.encodingProgressBar.setValue(100 if exitCode == 0 else 0)
         
         if exitCode == 0:
             self.updateStatus("Завершено успешно")
@@ -311,6 +686,8 @@ class MainWindow(QMainWindow):
         else:
             self.updateStatus("Ошибка")
             self.ui.logDisplay.append(f"<br><b><font color='red'>✗ Ошибка! Код завершения: {exitCode}</font></b>")
+        
+        self.isPaused = False
     
     def updateStatus(self, status_text):
         """Обновляет статус в статусбаре"""

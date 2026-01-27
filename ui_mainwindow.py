@@ -11,25 +11,26 @@
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
     QMetaObject, QObject, QPoint, QRect,
     QSize, QTime, QUrl, Qt)
-from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
-    QFont, QFontDatabase, QGradient, QIcon,
-    QImage, QKeySequence, QLinearGradient, QPainter,
-    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
+    QCursor, QFont, QFontDatabase, QGradient,
+    QIcon, QImage, QKeySequence, QLinearGradient,
+    QPainter, QPalette, QPixmap, QRadialGradient,
+    QTransform)
 from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QMenuBar, QPushButton,
-    QSizePolicy, QStatusBar, QTextEdit, QVBoxLayout,
-    QWidget)
+    QLineEdit, QMainWindow, QMenu, QMenuBar,
+    QProgressBar, QPushButton, QSizePolicy, QSlider,
+    QStatusBar, QTextEdit, QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(921, 695)
+        MainWindow.resize(914, 733)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
         self.verticalLayoutWidget = QWidget(self.centralwidget)
         self.verticalLayoutWidget.setObjectName(u"verticalLayoutWidget")
-        self.verticalLayoutWidget.setGeometry(QRect(30, 20, 861, 61))
+        self.verticalLayoutWidget.setGeometry(QRect(20, 300, 871, 31))
         self.mainLayout = QVBoxLayout(self.verticalLayoutWidget)
         self.mainLayout.setObjectName(u"mainLayout")
         self.mainLayout.setContentsMargins(0, 0, 0, 0)
@@ -56,7 +57,7 @@ class Ui_MainWindow(object):
 
         self.horizontalLayoutWidget_2 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_2.setObjectName(u"horizontalLayoutWidget_2")
-        self.horizontalLayoutWidget_2.setGeometry(QRect(30, 90, 135, 80))
+        self.horizontalLayoutWidget_2.setGeometry(QRect(20, 340, 135, 31))
         self.horizontalLayout_3 = QHBoxLayout(self.horizontalLayoutWidget_2)
         self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
         self.horizontalLayout_3.setContentsMargins(0, 0, 0, 0)
@@ -75,7 +76,7 @@ class Ui_MainWindow(object):
 
         self.horizontalLayoutWidget_3 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_3.setObjectName(u"horizontalLayoutWidget_3")
-        self.horizontalLayoutWidget_3.setGeometry(QRect(180, 90, 171, 80))
+        self.horizontalLayoutWidget_3.setGeometry(QRect(170, 340, 171, 31))
         self.horizontalLayout_4 = QHBoxLayout(self.horizontalLayoutWidget_3)
         self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
         self.horizontalLayout_4.setContentsMargins(0, 0, 0, 0)
@@ -94,7 +95,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_4.setStretch(1, 1)
         self.horizontalLayoutWidget_4 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_4.setObjectName(u"horizontalLayoutWidget_4")
-        self.horizontalLayoutWidget_4.setGeometry(QRect(370, 90, 171, 80))
+        self.horizontalLayoutWidget_4.setGeometry(QRect(360, 340, 171, 31))
         self.horizontalLayout_5 = QHBoxLayout(self.horizontalLayoutWidget_4)
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
         self.horizontalLayout_5.setContentsMargins(0, 0, 0, 0)
@@ -115,7 +116,7 @@ class Ui_MainWindow(object):
         self.horizontalLayout_5.setStretch(1, 1)
         self.horizontalLayoutWidget_5 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_5.setObjectName(u"horizontalLayoutWidget_5")
-        self.horizontalLayoutWidget_5.setGeometry(QRect(660, 90, 237, 80))
+        self.horizontalLayoutWidget_5.setGeometry(QRect(650, 340, 237, 31))
         self.horizontalLayout_6 = QHBoxLayout(self.horizontalLayoutWidget_5)
         self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
         self.horizontalLayout_6.setContentsMargins(0, 0, 0, 0)
@@ -133,10 +134,10 @@ class Ui_MainWindow(object):
 
         self.label_6 = QLabel(self.centralwidget)
         self.label_6.setObjectName(u"label_6")
-        self.label_6.setGeometry(QRect(30, 190, 131, 20))
+        self.label_6.setGeometry(QRect(20, 370, 131, 20))
         self.horizontalLayoutWidget_6 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_6.setObjectName(u"horizontalLayoutWidget_6")
-        self.horizontalLayoutWidget_6.setGeometry(QRect(30, 220, 871, 87))
+        self.horizontalLayoutWidget_6.setGeometry(QRect(20, 390, 871, 73))
         self.horizontalLayout_7 = QHBoxLayout(self.horizontalLayoutWidget_6)
         self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
         self.horizontalLayout_7.setContentsMargins(0, 0, 0, 0)
@@ -155,7 +156,7 @@ class Ui_MainWindow(object):
 
         self.horizontalLayoutWidget_7 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_7.setObjectName(u"horizontalLayoutWidget_7")
-        self.horizontalLayoutWidget_7.setGeometry(QRect(30, 320, 771, 80))
+        self.horizontalLayoutWidget_7.setGeometry(QRect(20, 500, 871, 41))
         self.horizontalLayout_8 = QHBoxLayout(self.horizontalLayoutWidget_7)
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.horizontalLayout_8.setContentsMargins(0, 0, 0, 0)
@@ -164,6 +165,12 @@ class Ui_MainWindow(object):
         self.runButton.setStyleSheet(u"background-color: #4CAF50; color: white; font-weight: bold; padding: 8px;")
 
         self.horizontalLayout_8.addWidget(self.runButton)
+
+        self.pauseResumeButton = QPushButton(self.horizontalLayoutWidget_7)
+        self.pauseResumeButton.setObjectName(u"pauseResumeButton")
+        self.pauseResumeButton.setEnabled(False)
+
+        self.horizontalLayout_8.addWidget(self.pauseResumeButton)
 
         self.savePresetButton = QPushButton(self.horizontalLayoutWidget_7)
         self.savePresetButton.setObjectName(u"savePresetButton")
@@ -192,23 +199,88 @@ class Ui_MainWindow(object):
 
         self.label_7 = QLabel(self.centralwidget)
         self.label_7.setObjectName(u"label_7")
-        self.label_7.setGeometry(QRect(30, 460, 131, 20))
+        self.label_7.setGeometry(QRect(20, 560, 131, 20))
         self.logDisplay = QTextEdit(self.centralwidget)
         self.logDisplay.setObjectName(u"logDisplay")
-        self.logDisplay.setGeometry(QRect(30, 500, 871, 151))
+        self.logDisplay.setGeometry(QRect(20, 580, 871, 101))
         self.logDisplay.setReadOnly(True)
         self.openOutputFolderButton = QPushButton(self.centralwidget)
         self.openOutputFolderButton.setObjectName(u"openOutputFolderButton")
         self.openOutputFolderButton.setEnabled(False)
-        self.openOutputFolderButton.setGeometry(QRect(30, 400, 148, 24))
+        self.openOutputFolderButton.setGeometry(QRect(20, 540, 151, 24))
+        self.widget = QWidget(self.centralwidget)
+        self.widget.setObjectName(u"widget")
+        self.widget.setGeometry(QRect(10, -40, 120, 80))
+        self.videoPreviewContainer = QWidget(self.centralwidget)
+        self.videoPreviewContainer.setObjectName(u"videoPreviewContainer")
+        self.videoPreviewContainer.setGeometry(QRect(270, 10, 401, 281))
+        self.verticalLayoutWidget_2 = QWidget(self.videoPreviewContainer)
+        self.verticalLayoutWidget_2.setObjectName(u"verticalLayoutWidget_2")
+        self.verticalLayoutWidget_2.setGeometry(QRect(0, 0, 401, 281))
+        self.verticalLayout = QVBoxLayout(self.verticalLayoutWidget_2)
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.verticalLayout.setContentsMargins(0, 0, 0, 0)
+        self.videoPreviewWidget = QWidget(self.verticalLayoutWidget_2)
+        self.videoPreviewWidget.setObjectName(u"videoPreviewWidget")
+        self.videoPreviewWidget.setMaximumSize(QSize(400, 300))
+        self.videoPreviewWidget.setStyleSheet(u"border: 1px solid #cccccc; background-color: #000000;")
+
+        self.verticalLayout.addWidget(self.videoPreviewWidget)
+
+        self.videoTimelineSlider = QSlider(self.verticalLayoutWidget_2)
+        self.videoTimelineSlider.setObjectName(u"videoTimelineSlider")
+        self.videoTimelineSlider.setMaximum(10000)
+        self.videoTimelineSlider.setOrientation(Qt.Orientation.Horizontal)
+
+        self.verticalLayout.addWidget(self.videoTimelineSlider)
+
+        self.videoControlsLayout = QHBoxLayout()
+        self.videoControlsLayout.setSpacing(4)
+        self.videoControlsLayout.setObjectName(u"videoControlsLayout")
+        self.videoPlayButton = QPushButton(self.verticalLayoutWidget_2)
+        self.videoPlayButton.setObjectName(u"videoPlayButton")
+
+        self.videoControlsLayout.addWidget(self.videoPlayButton)
+
+        self.videoStopButton = QPushButton(self.verticalLayoutWidget_2)
+        self.videoStopButton.setObjectName(u"videoStopButton")
+
+        self.videoControlsLayout.addWidget(self.videoStopButton)
+
+        self.videoTimeLabel = QLabel(self.verticalLayoutWidget_2)
+        self.videoTimeLabel.setObjectName(u"videoTimeLabel")
+
+        self.videoControlsLayout.addWidget(self.videoTimeLabel)
+
+        self.videoMuteButton = QPushButton(self.verticalLayoutWidget_2)
+        self.videoMuteButton.setObjectName(u"videoMuteButton")
+
+        self.videoControlsLayout.addWidget(self.videoMuteButton)
+
+        self.videoControlsLayout.setStretch(0, 2)
+        self.videoControlsLayout.setStretch(1, 2)
+
+        self.verticalLayout.addLayout(self.videoControlsLayout)
+
+        self.verticalLayout.setStretch(0, 6)
+        self.verticalLayout.setStretch(1, 2)
+        self.verticalLayout.setStretch(2, 1)
+        self.encodingProgressBar = QProgressBar(self.centralwidget)
+        self.encodingProgressBar.setObjectName(u"encodingProgressBar")
+        self.encodingProgressBar.setGeometry(QRect(20, 470, 871, 23))
+        self.encodingProgressBar.setValue(0)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 921, 22))
+        self.menubar.setGeometry(QRect(0, 0, 914, 22))
+        self.menumainwindow = QMenu(self.menubar)
+        self.menumainwindow.setObjectName(u"menumainwindow")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QStatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
+
+        self.menubar.addAction(self.menumainwindow.menuAction())
 
         self.retranslateUi(MainWindow)
 
@@ -239,6 +311,7 @@ class Ui_MainWindow(object):
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043c\u0430\u043d\u0434\u0430 FFmpeg:", None))
         self.copyCmdButton.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.runButton.setText(QCoreApplication.translate("MainWindow", u"\u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043a\u043e\u0434\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435", None))
+        self.pauseResumeButton.setText(QCoreApplication.translate("MainWindow", u"\u23f8 \u041f\u0430\u0443\u0437\u0430", None))
         self.savePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.loadPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.deletePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
@@ -246,5 +319,10 @@ class Ui_MainWindow(object):
         self.importPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"\u041b\u043e\u0433 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f:", None))
         self.openOutputFolderButton.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0430\u043f\u043a\u0443", None))
+        self.videoPlayButton.setText(QCoreApplication.translate("MainWindow", u"\u25b6 Play", None))
+        self.videoStopButton.setText(QCoreApplication.translate("MainWindow", u"\u23f9 Stop", None))
+        self.videoTimeLabel.setText(QCoreApplication.translate("MainWindow", u"00:00 / 00:00", None))
+        self.videoMuteButton.setText(QCoreApplication.translate("MainWindow", u"\U0000200b\U0001f50a", None))
+        self.menumainwindow.setTitle(QCoreApplication.translate("MainWindow", u"mainwindow", None))
     # retranslateUi
 
