@@ -3,6 +3,8 @@
 *.mp4
 *.mov
 tz.md
+ffmpeg.exe
+ffprobe.exe
 
 # Python
 # --------

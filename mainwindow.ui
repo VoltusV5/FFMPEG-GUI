@@ -6,202 +6,19 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>914</width>
-    <height>733</height>
+    <width>1402</width>
+    <height>694</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QWidget" name="verticalLayoutWidget">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>300</y>
-      <width>871</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <layout class="QVBoxLayout" name="mainLayout">
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <item>
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>Входной файл:</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLineEdit" name="inputFileEdit">
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="browseButton">
-         <property name="text">
-          <string>Обзор...</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget_2">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>340</y>
-      <width>135</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,0">
-     <item>
-      <widget class="QLabel" name="label_2">
-       <property name="text">
-        <string>Кодек:</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QComboBox" name="codecCombo">
-       <item>
-        <property name="text">
-         <string>libx264</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>libx265</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>copy</string>
-        </property>
-       </item>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget_3">
-    <property name="geometry">
-     <rect>
-      <x>170</x>
-      <y>340</y>
-      <width>171</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="0,1">
-     <item>
-      <widget class="QLabel" name="label_3">
-       <property name="text">
-        <string>Контейнер:</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QComboBox" name="containerCombo">
-       <item>
-        <property name="text">
-         <string>mp4</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>mkv</string>
-        </property>
-       </item>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget_4">
-    <property name="geometry">
-     <rect>
-      <x>360</x>
-      <y>340</y>
-      <width>171</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="0,1">
-     <item>
-      <widget class="QLabel" name="label_4">
-       <property name="text">
-        <string>Разрешение:</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QComboBox" name="resolutionCombo">
-       <item>
-        <property name="text">
-         <string>480p</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>720p</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>1080p</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>custom</string>
-        </property>
-       </item>
-      </widget>
-     </item>
-    </layout>
-   </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget_5">
-    <property name="geometry">
-     <rect>
-      <x>650</x>
-      <y>340</y>
-      <width>237</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout_6" stretch="0,0">
-     <item>
-      <widget class="QLabel" name="label_5">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="text">
-        <string>Custom (width:height):</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="customResolutionEdit">
-       <property name="enabled">
-        <bool>true</bool>
-       </property>
-       <property name="placeholderText">
-        <string>1920:1080</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
    <widget class="QLabel" name="label_6">
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>370</y>
+      <y>300</y>
       <width>131</width>
       <height>20</height>
      </rect>
@@ -210,46 +27,11 @@
      <string>Команда FFmpeg:</string>
     </property>
    </widget>
-   <widget class="QWidget" name="horizontalLayoutWidget_6">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>390</y>
-      <width>871</width>
-      <height>73</height>
-     </rect>
-    </property>
-    <layout class="QHBoxLayout" name="horizontalLayout_7">
-     <item>
-      <widget class="QTextEdit" name="commandDisplay">
-       <property name="maximumSize">
-        <size>
-         <width>16777215</width>
-         <height>80</height>
-        </size>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">background-color: #f0f0f0; font-family: Consolas;</string>
-       </property>
-       <property name="readOnly">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="copyCmdButton">
-       <property name="text">
-        <string>Копировать</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </widget>
    <widget class="QWidget" name="horizontalLayoutWidget_7">
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>500</y>
+      <y>430</y>
       <width>871</width>
       <height>41</height>
      </rect>
@@ -276,37 +58,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="savePresetButton">
-       <property name="text">
-        <string>Сохранить пресет</string>
-       </property>
-      </widget>
-     </item>
-     <item>
       <widget class="QPushButton" name="loadPresetButton">
        <property name="text">
         <string>Загрузить пресет</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="deletePresetButton">
-       <property name="text">
-        <string>Удалить пресет</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="exportPresetButton">
-       <property name="text">
-        <string>Экспорт пресетов</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="importPresetButton">
-       <property name="text">
-        <string>Импорт пресетов</string>
        </property>
       </widget>
      </item>
@@ -316,7 +70,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>560</y>
+      <y>500</y>
       <width>131</width>
       <height>20</height>
      </rect>
@@ -329,7 +83,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>580</y>
+      <y>520</y>
       <width>871</width>
       <height>101</height>
      </rect>
@@ -345,7 +99,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>540</y>
+      <y>470</y>
       <width>151</width>
       <height>24</height>
      </rect>
@@ -354,21 +108,11 @@
      <string>Открыть папку</string>
     </property>
    </widget>
-   <widget class="QWidget" name="widget" native="true">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>-40</y>
-      <width>120</width>
-      <height>80</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QWidget" name="videoPreviewContainer" native="true">
     <property name="geometry">
      <rect>
-      <x>270</x>
-      <y>10</y>
+      <x>20</x>
+      <y>20</y>
       <width>401</width>
       <height>281</height>
      </rect>
@@ -448,7 +192,7 @@
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>470</y>
+      <y>400</y>
       <width>871</width>
       <height>23</height>
      </rect>
@@ -457,13 +201,426 @@
      <number>0</number>
     </property>
    </widget>
+   <widget class="QWidget" name="queueContainer" native="true">
+    <property name="geometry">
+     <rect>
+      <x>440</x>
+      <y>20</y>
+      <width>451</width>
+      <height>281</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="verticalLayoutWidget">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>20</y>
+       <width>451</width>
+       <height>261</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="queueContainerLayout" stretch="9,1">
+      <item>
+       <widget class="QTableWidget" name="queueTableWidget">
+        <property name="acceptDrops">
+         <bool>true</bool>
+        </property>
+        <property name="dragDropMode">
+         <enum>QAbstractItemView::DragDropMode::DropOnly</enum>
+        </property>
+        <property name="alternatingRowColors">
+         <bool>true</bool>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+        </property>
+        <column>
+         <property name="text">
+          <string>Входной файл</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Пресет</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Статус</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Прогресс</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="queueButtonsLayout">
+        <item>
+         <widget class="QPushButton" name="addFilesButton">
+          <property name="text">
+           <string>Добавить файлы...</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="removeFromQueueButton">
+          <property name="text">
+           <string>Удалить из очереди</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QLabel" name="queueLabel">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>101</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Очередь файлов:</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="presetEditorContainer" native="true">
+    <property name="geometry">
+     <rect>
+      <x>910</x>
+      <y>20</y>
+      <width>471</width>
+      <height>281</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="verticalLayoutWidget_3">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>471</width>
+       <height>281</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="presetEditorLayout" stretch="1,0,20,1">
+      <item>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Настройка пресетов</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="presetEditorTopButtonsLayout">
+        <item>
+         <widget class="QPushButton" name="presetExportButton">
+          <property name="text">
+           <string>Экспорт пресетов</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="presetImportButton">
+          <property name="text">
+           <string>Импорт пресетов</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QTableWidget" name="presetsTableWidget">
+        <property name="alternatingRowColors">
+         <bool>true</bool>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+        </property>
+        <property name="selectionBehavior">
+         <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+        </property>
+        <property name="columnCount">
+         <number>4</number>
+        </property>
+        <attribute name="horizontalHeaderCascadingSectionResizes">
+         <bool>false</bool>
+        </attribute>
+        <attribute name="horizontalHeaderDefaultSectionSize">
+         <number>100</number>
+        </attribute>
+        <attribute name="horizontalHeaderHighlightSections">
+         <bool>true</bool>
+        </attribute>
+        <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+         <bool>false</bool>
+        </attribute>
+        <column>
+         <property name="text">
+          <string>Название</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Описание</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Удалить</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Применить к выбранному файлу</string>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+        </column>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="presetEditorBottomButtonsLayout">
+        <item>
+         <widget class="QPushButton" name="createPresetButton">
+          <property name="text">
+           <string>Создать пресет</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="savePresetChangesButton">
+          <property name="text">
+           <string>Сохранить пресет</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="presetSettingsContainer" native="true">
+    <property name="geometry">
+     <rect>
+      <x>910</x>
+      <y>300</y>
+      <width>471</width>
+      <height>321</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="verticalLayoutWidget_4">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>20</y>
+       <width>480</width>
+       <height>141</height>
+      </rect>
+     </property>
+     <layout class="QVBoxLayout" name="presetSettingsLayout">
+      <item>
+       <layout class="QHBoxLayout" name="codecRowLayout" stretch="0,0,0,0,0">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="codecLabel">
+          <property name="text">
+           <string>Кодек</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="codecCurrentButton">
+          <property name="text">
+           <string>current</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="codecLibx264Button">
+          <property name="text">
+           <string>libx264</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="codecLibx265Button">
+          <property name="text">
+           <string>libx265</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="codecCustomButton">
+          <property name="text">
+           <string>custom</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="containerRowLayout">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="containerLabel">
+          <property name="text">
+           <string>Контейнер</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="containerCurrentButton">
+          <property name="text">
+           <string>current</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="containerMp4Button">
+          <property name="text">
+           <string>mp4</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="containerMkvButton">
+          <property name="text">
+           <string>mkv</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="containerCustomButton">
+          <property name="text">
+           <string>custom</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="resolutionRowLayout" stretch="2,1,1,1,1,0">
+        <item>
+         <widget class="QLabel" name="resolutionLabel">
+          <property name="text">
+           <string>Разрешение </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resolutionCurrentButton">
+          <property name="text">
+           <string>current</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resolution480pButton">
+          <property name="text">
+           <string>480p</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resolution720pButton">
+          <property name="text">
+           <string>720p</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resolution1080pButton">
+          <property name="text">
+           <string>1080p</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="resolutionCustomButton">
+          <property name="text">
+           <string>custom</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="widget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>440</x>
+      <y>310</y>
+      <width>451</width>
+      <height>71</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="horizontalLayoutWidget_6">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>10</y>
+       <width>441</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_7">
+      <item>
+       <widget class="QTextEdit" name="commandDisplay">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>80</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">background-color: #f0f0f0; font-family: Consolas;</string>
+        </property>
+        <property name="readOnly">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QPushButton" name="copyCmdButton">
+     <property name="geometry">
+      <rect>
+       <x>374</x>
+       <y>0</y>
+       <width>71</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Копировать</string>
+     </property>
+    </widget>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>914</width>
+     <width>1402</width>
      <height>22</height>
     </rect>
    </property>

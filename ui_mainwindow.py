@@ -16,147 +16,25 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QIcon, QImage, QKeySequence, QLinearGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
-from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QLabel,
-    QLineEdit, QMainWindow, QMenu, QMenuBar,
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QHBoxLayout, QHeaderView,
+    QLabel, QMainWindow, QMenu, QMenuBar,
     QProgressBar, QPushButton, QSizePolicy, QSlider,
-    QStatusBar, QTextEdit, QVBoxLayout, QWidget)
+    QStatusBar, QTableWidget, QTableWidgetItem, QTextEdit,
+    QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         if not MainWindow.objectName():
             MainWindow.setObjectName(u"MainWindow")
-        MainWindow.resize(914, 733)
+        MainWindow.resize(1402, 694)
         self.centralwidget = QWidget(MainWindow)
         self.centralwidget.setObjectName(u"centralwidget")
-        self.verticalLayoutWidget = QWidget(self.centralwidget)
-        self.verticalLayoutWidget.setObjectName(u"verticalLayoutWidget")
-        self.verticalLayoutWidget.setGeometry(QRect(20, 300, 871, 31))
-        self.mainLayout = QVBoxLayout(self.verticalLayoutWidget)
-        self.mainLayout.setObjectName(u"mainLayout")
-        self.mainLayout.setContentsMargins(0, 0, 0, 0)
-        self.horizontalLayout_2 = QHBoxLayout()
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.label = QLabel(self.verticalLayoutWidget)
-        self.label.setObjectName(u"label")
-
-        self.horizontalLayout_2.addWidget(self.label)
-
-        self.inputFileEdit = QLineEdit(self.verticalLayoutWidget)
-        self.inputFileEdit.setObjectName(u"inputFileEdit")
-        self.inputFileEdit.setReadOnly(True)
-
-        self.horizontalLayout_2.addWidget(self.inputFileEdit)
-
-        self.browseButton = QPushButton(self.verticalLayoutWidget)
-        self.browseButton.setObjectName(u"browseButton")
-
-        self.horizontalLayout_2.addWidget(self.browseButton)
-
-
-        self.mainLayout.addLayout(self.horizontalLayout_2)
-
-        self.horizontalLayoutWidget_2 = QWidget(self.centralwidget)
-        self.horizontalLayoutWidget_2.setObjectName(u"horizontalLayoutWidget_2")
-        self.horizontalLayoutWidget_2.setGeometry(QRect(20, 340, 135, 31))
-        self.horizontalLayout_3 = QHBoxLayout(self.horizontalLayoutWidget_2)
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
-        self.horizontalLayout_3.setContentsMargins(0, 0, 0, 0)
-        self.label_2 = QLabel(self.horizontalLayoutWidget_2)
-        self.label_2.setObjectName(u"label_2")
-
-        self.horizontalLayout_3.addWidget(self.label_2)
-
-        self.codecCombo = QComboBox(self.horizontalLayoutWidget_2)
-        self.codecCombo.addItem("")
-        self.codecCombo.addItem("")
-        self.codecCombo.addItem("")
-        self.codecCombo.setObjectName(u"codecCombo")
-
-        self.horizontalLayout_3.addWidget(self.codecCombo)
-
-        self.horizontalLayoutWidget_3 = QWidget(self.centralwidget)
-        self.horizontalLayoutWidget_3.setObjectName(u"horizontalLayoutWidget_3")
-        self.horizontalLayoutWidget_3.setGeometry(QRect(170, 340, 171, 31))
-        self.horizontalLayout_4 = QHBoxLayout(self.horizontalLayoutWidget_3)
-        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.horizontalLayout_4.setContentsMargins(0, 0, 0, 0)
-        self.label_3 = QLabel(self.horizontalLayoutWidget_3)
-        self.label_3.setObjectName(u"label_3")
-
-        self.horizontalLayout_4.addWidget(self.label_3)
-
-        self.containerCombo = QComboBox(self.horizontalLayoutWidget_3)
-        self.containerCombo.addItem("")
-        self.containerCombo.addItem("")
-        self.containerCombo.setObjectName(u"containerCombo")
-
-        self.horizontalLayout_4.addWidget(self.containerCombo)
-
-        self.horizontalLayout_4.setStretch(1, 1)
-        self.horizontalLayoutWidget_4 = QWidget(self.centralwidget)
-        self.horizontalLayoutWidget_4.setObjectName(u"horizontalLayoutWidget_4")
-        self.horizontalLayoutWidget_4.setGeometry(QRect(360, 340, 171, 31))
-        self.horizontalLayout_5 = QHBoxLayout(self.horizontalLayoutWidget_4)
-        self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
-        self.horizontalLayout_5.setContentsMargins(0, 0, 0, 0)
-        self.label_4 = QLabel(self.horizontalLayoutWidget_4)
-        self.label_4.setObjectName(u"label_4")
-
-        self.horizontalLayout_5.addWidget(self.label_4)
-
-        self.resolutionCombo = QComboBox(self.horizontalLayoutWidget_4)
-        self.resolutionCombo.addItem("")
-        self.resolutionCombo.addItem("")
-        self.resolutionCombo.addItem("")
-        self.resolutionCombo.addItem("")
-        self.resolutionCombo.setObjectName(u"resolutionCombo")
-
-        self.horizontalLayout_5.addWidget(self.resolutionCombo)
-
-        self.horizontalLayout_5.setStretch(1, 1)
-        self.horizontalLayoutWidget_5 = QWidget(self.centralwidget)
-        self.horizontalLayoutWidget_5.setObjectName(u"horizontalLayoutWidget_5")
-        self.horizontalLayoutWidget_5.setGeometry(QRect(650, 340, 237, 31))
-        self.horizontalLayout_6 = QHBoxLayout(self.horizontalLayoutWidget_5)
-        self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
-        self.horizontalLayout_6.setContentsMargins(0, 0, 0, 0)
-        self.label_5 = QLabel(self.horizontalLayoutWidget_5)
-        self.label_5.setObjectName(u"label_5")
-        self.label_5.setEnabled(True)
-
-        self.horizontalLayout_6.addWidget(self.label_5)
-
-        self.customResolutionEdit = QLineEdit(self.horizontalLayoutWidget_5)
-        self.customResolutionEdit.setObjectName(u"customResolutionEdit")
-        self.customResolutionEdit.setEnabled(True)
-
-        self.horizontalLayout_6.addWidget(self.customResolutionEdit)
-
         self.label_6 = QLabel(self.centralwidget)
         self.label_6.setObjectName(u"label_6")
-        self.label_6.setGeometry(QRect(20, 370, 131, 20))
-        self.horizontalLayoutWidget_6 = QWidget(self.centralwidget)
-        self.horizontalLayoutWidget_6.setObjectName(u"horizontalLayoutWidget_6")
-        self.horizontalLayoutWidget_6.setGeometry(QRect(20, 390, 871, 73))
-        self.horizontalLayout_7 = QHBoxLayout(self.horizontalLayoutWidget_6)
-        self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
-        self.horizontalLayout_7.setContentsMargins(0, 0, 0, 0)
-        self.commandDisplay = QTextEdit(self.horizontalLayoutWidget_6)
-        self.commandDisplay.setObjectName(u"commandDisplay")
-        self.commandDisplay.setMaximumSize(QSize(16777215, 80))
-        self.commandDisplay.setStyleSheet(u"background-color: #f0f0f0; font-family: Consolas;")
-        self.commandDisplay.setReadOnly(False)
-
-        self.horizontalLayout_7.addWidget(self.commandDisplay)
-
-        self.copyCmdButton = QPushButton(self.horizontalLayoutWidget_6)
-        self.copyCmdButton.setObjectName(u"copyCmdButton")
-
-        self.horizontalLayout_7.addWidget(self.copyCmdButton)
-
+        self.label_6.setGeometry(QRect(20, 300, 131, 20))
         self.horizontalLayoutWidget_7 = QWidget(self.centralwidget)
         self.horizontalLayoutWidget_7.setObjectName(u"horizontalLayoutWidget_7")
-        self.horizontalLayoutWidget_7.setGeometry(QRect(20, 500, 871, 41))
+        self.horizontalLayoutWidget_7.setGeometry(QRect(20, 430, 871, 41))
         self.horizontalLayout_8 = QHBoxLayout(self.horizontalLayoutWidget_7)
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.horizontalLayout_8.setContentsMargins(0, 0, 0, 0)
@@ -172,48 +50,25 @@ class Ui_MainWindow(object):
 
         self.horizontalLayout_8.addWidget(self.pauseResumeButton)
 
-        self.savePresetButton = QPushButton(self.horizontalLayoutWidget_7)
-        self.savePresetButton.setObjectName(u"savePresetButton")
-
-        self.horizontalLayout_8.addWidget(self.savePresetButton)
-
         self.loadPresetButton = QPushButton(self.horizontalLayoutWidget_7)
         self.loadPresetButton.setObjectName(u"loadPresetButton")
 
         self.horizontalLayout_8.addWidget(self.loadPresetButton)
 
-        self.deletePresetButton = QPushButton(self.horizontalLayoutWidget_7)
-        self.deletePresetButton.setObjectName(u"deletePresetButton")
-
-        self.horizontalLayout_8.addWidget(self.deletePresetButton)
-
-        self.exportPresetButton = QPushButton(self.horizontalLayoutWidget_7)
-        self.exportPresetButton.setObjectName(u"exportPresetButton")
-
-        self.horizontalLayout_8.addWidget(self.exportPresetButton)
-
-        self.importPresetButton = QPushButton(self.horizontalLayoutWidget_7)
-        self.importPresetButton.setObjectName(u"importPresetButton")
-
-        self.horizontalLayout_8.addWidget(self.importPresetButton)
-
         self.label_7 = QLabel(self.centralwidget)
         self.label_7.setObjectName(u"label_7")
-        self.label_7.setGeometry(QRect(20, 560, 131, 20))
+        self.label_7.setGeometry(QRect(20, 500, 131, 20))
         self.logDisplay = QTextEdit(self.centralwidget)
         self.logDisplay.setObjectName(u"logDisplay")
-        self.logDisplay.setGeometry(QRect(20, 580, 871, 101))
+        self.logDisplay.setGeometry(QRect(20, 520, 871, 101))
         self.logDisplay.setReadOnly(True)
         self.openOutputFolderButton = QPushButton(self.centralwidget)
         self.openOutputFolderButton.setObjectName(u"openOutputFolderButton")
         self.openOutputFolderButton.setEnabled(False)
-        self.openOutputFolderButton.setGeometry(QRect(20, 540, 151, 24))
-        self.widget = QWidget(self.centralwidget)
-        self.widget.setObjectName(u"widget")
-        self.widget.setGeometry(QRect(10, -40, 120, 80))
+        self.openOutputFolderButton.setGeometry(QRect(20, 470, 151, 24))
         self.videoPreviewContainer = QWidget(self.centralwidget)
         self.videoPreviewContainer.setObjectName(u"videoPreviewContainer")
-        self.videoPreviewContainer.setGeometry(QRect(270, 10, 401, 281))
+        self.videoPreviewContainer.setGeometry(QRect(20, 20, 401, 281))
         self.verticalLayoutWidget_2 = QWidget(self.videoPreviewContainer)
         self.verticalLayoutWidget_2.setObjectName(u"verticalLayoutWidget_2")
         self.verticalLayoutWidget_2.setGeometry(QRect(0, 0, 401, 281))
@@ -267,12 +122,265 @@ class Ui_MainWindow(object):
         self.verticalLayout.setStretch(2, 1)
         self.encodingProgressBar = QProgressBar(self.centralwidget)
         self.encodingProgressBar.setObjectName(u"encodingProgressBar")
-        self.encodingProgressBar.setGeometry(QRect(20, 470, 871, 23))
+        self.encodingProgressBar.setGeometry(QRect(20, 400, 871, 23))
         self.encodingProgressBar.setValue(0)
+        self.queueContainer = QWidget(self.centralwidget)
+        self.queueContainer.setObjectName(u"queueContainer")
+        self.queueContainer.setGeometry(QRect(440, 20, 451, 281))
+        self.verticalLayoutWidget = QWidget(self.queueContainer)
+        self.verticalLayoutWidget.setObjectName(u"verticalLayoutWidget")
+        self.verticalLayoutWidget.setGeometry(QRect(0, 20, 451, 261))
+        self.queueContainerLayout = QVBoxLayout(self.verticalLayoutWidget)
+        self.queueContainerLayout.setObjectName(u"queueContainerLayout")
+        self.queueContainerLayout.setContentsMargins(0, 0, 0, 0)
+        self.queueTableWidget = QTableWidget(self.verticalLayoutWidget)
+        if (self.queueTableWidget.columnCount() < 4):
+            self.queueTableWidget.setColumnCount(4)
+        __qtablewidgetitem = QTableWidgetItem()
+        self.queueTableWidget.setHorizontalHeaderItem(0, __qtablewidgetitem)
+        __qtablewidgetitem1 = QTableWidgetItem()
+        self.queueTableWidget.setHorizontalHeaderItem(1, __qtablewidgetitem1)
+        __qtablewidgetitem2 = QTableWidgetItem()
+        self.queueTableWidget.setHorizontalHeaderItem(2, __qtablewidgetitem2)
+        __qtablewidgetitem3 = QTableWidgetItem()
+        self.queueTableWidget.setHorizontalHeaderItem(3, __qtablewidgetitem3)
+        self.queueTableWidget.setObjectName(u"queueTableWidget")
+        self.queueTableWidget.setAcceptDrops(True)
+        self.queueTableWidget.setDragDropMode(QAbstractItemView.DragDropMode.DropOnly)
+        self.queueTableWidget.setAlternatingRowColors(True)
+        self.queueTableWidget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.queueTableWidget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+
+        self.queueContainerLayout.addWidget(self.queueTableWidget)
+
+        self.queueButtonsLayout = QHBoxLayout()
+        self.queueButtonsLayout.setObjectName(u"queueButtonsLayout")
+        self.addFilesButton = QPushButton(self.verticalLayoutWidget)
+        self.addFilesButton.setObjectName(u"addFilesButton")
+
+        self.queueButtonsLayout.addWidget(self.addFilesButton)
+
+        self.removeFromQueueButton = QPushButton(self.verticalLayoutWidget)
+        self.removeFromQueueButton.setObjectName(u"removeFromQueueButton")
+
+        self.queueButtonsLayout.addWidget(self.removeFromQueueButton)
+
+
+        self.queueContainerLayout.addLayout(self.queueButtonsLayout)
+
+        self.queueContainerLayout.setStretch(0, 9)
+        self.queueContainerLayout.setStretch(1, 1)
+        self.queueLabel = QLabel(self.queueContainer)
+        self.queueLabel.setObjectName(u"queueLabel")
+        self.queueLabel.setGeometry(QRect(0, 0, 101, 16))
+        self.presetEditorContainer = QWidget(self.centralwidget)
+        self.presetEditorContainer.setObjectName(u"presetEditorContainer")
+        self.presetEditorContainer.setGeometry(QRect(910, 20, 471, 281))
+        self.verticalLayoutWidget_3 = QWidget(self.presetEditorContainer)
+        self.verticalLayoutWidget_3.setObjectName(u"verticalLayoutWidget_3")
+        self.verticalLayoutWidget_3.setGeometry(QRect(0, 0, 471, 281))
+        self.presetEditorLayout = QVBoxLayout(self.verticalLayoutWidget_3)
+        self.presetEditorLayout.setObjectName(u"presetEditorLayout")
+        self.presetEditorLayout.setContentsMargins(0, 0, 0, 0)
+        self.label = QLabel(self.verticalLayoutWidget_3)
+        self.label.setObjectName(u"label")
+
+        self.presetEditorLayout.addWidget(self.label)
+
+        self.presetEditorTopButtonsLayout = QHBoxLayout()
+        self.presetEditorTopButtonsLayout.setObjectName(u"presetEditorTopButtonsLayout")
+        self.presetExportButton = QPushButton(self.verticalLayoutWidget_3)
+        self.presetExportButton.setObjectName(u"presetExportButton")
+
+        self.presetEditorTopButtonsLayout.addWidget(self.presetExportButton)
+
+        self.presetImportButton = QPushButton(self.verticalLayoutWidget_3)
+        self.presetImportButton.setObjectName(u"presetImportButton")
+
+        self.presetEditorTopButtonsLayout.addWidget(self.presetImportButton)
+
+
+        self.presetEditorLayout.addLayout(self.presetEditorTopButtonsLayout)
+
+        self.presetsTableWidget = QTableWidget(self.verticalLayoutWidget_3)
+        if (self.presetsTableWidget.columnCount() < 4):
+            self.presetsTableWidget.setColumnCount(4)
+        __qtablewidgetitem4 = QTableWidgetItem()
+        self.presetsTableWidget.setHorizontalHeaderItem(0, __qtablewidgetitem4)
+        __qtablewidgetitem5 = QTableWidgetItem()
+        self.presetsTableWidget.setHorizontalHeaderItem(1, __qtablewidgetitem5)
+        __qtablewidgetitem6 = QTableWidgetItem()
+        self.presetsTableWidget.setHorizontalHeaderItem(2, __qtablewidgetitem6)
+        font = QFont()
+        font.setPointSize(9)
+        __qtablewidgetitem7 = QTableWidgetItem()
+        __qtablewidgetitem7.setFont(font);
+        self.presetsTableWidget.setHorizontalHeaderItem(3, __qtablewidgetitem7)
+        self.presetsTableWidget.setObjectName(u"presetsTableWidget")
+        self.presetsTableWidget.setAlternatingRowColors(True)
+        self.presetsTableWidget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.presetsTableWidget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.presetsTableWidget.setColumnCount(4)
+        self.presetsTableWidget.horizontalHeader().setCascadingSectionResizes(False)
+        self.presetsTableWidget.horizontalHeader().setDefaultSectionSize(100)
+        self.presetsTableWidget.horizontalHeader().setHighlightSections(True)
+        self.presetsTableWidget.horizontalHeader().setProperty(u"showSortIndicator", False)
+
+        self.presetEditorLayout.addWidget(self.presetsTableWidget)
+
+        self.presetEditorBottomButtonsLayout = QHBoxLayout()
+        self.presetEditorBottomButtonsLayout.setObjectName(u"presetEditorBottomButtonsLayout")
+        self.createPresetButton = QPushButton(self.verticalLayoutWidget_3)
+        self.createPresetButton.setObjectName(u"createPresetButton")
+
+        self.presetEditorBottomButtonsLayout.addWidget(self.createPresetButton)
+
+        self.savePresetChangesButton = QPushButton(self.verticalLayoutWidget_3)
+        self.savePresetChangesButton.setObjectName(u"savePresetChangesButton")
+
+        self.presetEditorBottomButtonsLayout.addWidget(self.savePresetChangesButton)
+
+
+        self.presetEditorLayout.addLayout(self.presetEditorBottomButtonsLayout)
+
+        self.presetEditorLayout.setStretch(0, 1)
+        self.presetEditorLayout.setStretch(2, 20)
+        self.presetEditorLayout.setStretch(3, 1)
+        self.presetSettingsContainer = QWidget(self.centralwidget)
+        self.presetSettingsContainer.setObjectName(u"presetSettingsContainer")
+        self.presetSettingsContainer.setGeometry(QRect(910, 300, 471, 321))
+        self.verticalLayoutWidget_4 = QWidget(self.presetSettingsContainer)
+        self.verticalLayoutWidget_4.setObjectName(u"verticalLayoutWidget_4")
+        self.verticalLayoutWidget_4.setGeometry(QRect(0, 20, 480, 141))
+        self.presetSettingsLayout = QVBoxLayout(self.verticalLayoutWidget_4)
+        self.presetSettingsLayout.setObjectName(u"presetSettingsLayout")
+        self.presetSettingsLayout.setContentsMargins(0, 0, 0, 0)
+        self.codecRowLayout = QHBoxLayout()
+        self.codecRowLayout.setSpacing(5)
+        self.codecRowLayout.setObjectName(u"codecRowLayout")
+        self.codecLabel = QLabel(self.verticalLayoutWidget_4)
+        self.codecLabel.setObjectName(u"codecLabel")
+
+        self.codecRowLayout.addWidget(self.codecLabel)
+
+        self.codecCurrentButton = QPushButton(self.verticalLayoutWidget_4)
+        self.codecCurrentButton.setObjectName(u"codecCurrentButton")
+
+        self.codecRowLayout.addWidget(self.codecCurrentButton)
+
+        self.codecLibx264Button = QPushButton(self.verticalLayoutWidget_4)
+        self.codecLibx264Button.setObjectName(u"codecLibx264Button")
+
+        self.codecRowLayout.addWidget(self.codecLibx264Button)
+
+        self.codecLibx265Button = QPushButton(self.verticalLayoutWidget_4)
+        self.codecLibx265Button.setObjectName(u"codecLibx265Button")
+
+        self.codecRowLayout.addWidget(self.codecLibx265Button)
+
+        self.codecCustomButton = QPushButton(self.verticalLayoutWidget_4)
+        self.codecCustomButton.setObjectName(u"codecCustomButton")
+
+        self.codecRowLayout.addWidget(self.codecCustomButton)
+
+
+        self.presetSettingsLayout.addLayout(self.codecRowLayout)
+
+        self.containerRowLayout = QHBoxLayout()
+        self.containerRowLayout.setSpacing(5)
+        self.containerRowLayout.setObjectName(u"containerRowLayout")
+        self.containerLabel = QLabel(self.verticalLayoutWidget_4)
+        self.containerLabel.setObjectName(u"containerLabel")
+
+        self.containerRowLayout.addWidget(self.containerLabel)
+
+        self.containerCurrentButton = QPushButton(self.verticalLayoutWidget_4)
+        self.containerCurrentButton.setObjectName(u"containerCurrentButton")
+
+        self.containerRowLayout.addWidget(self.containerCurrentButton)
+
+        self.containerMp4Button = QPushButton(self.verticalLayoutWidget_4)
+        self.containerMp4Button.setObjectName(u"containerMp4Button")
+
+        self.containerRowLayout.addWidget(self.containerMp4Button)
+
+        self.containerMkvButton = QPushButton(self.verticalLayoutWidget_4)
+        self.containerMkvButton.setObjectName(u"containerMkvButton")
+
+        self.containerRowLayout.addWidget(self.containerMkvButton)
+
+        self.containerCustomButton = QPushButton(self.verticalLayoutWidget_4)
+        self.containerCustomButton.setObjectName(u"containerCustomButton")
+
+        self.containerRowLayout.addWidget(self.containerCustomButton)
+
+
+        self.presetSettingsLayout.addLayout(self.containerRowLayout)
+
+        self.resolutionRowLayout = QHBoxLayout()
+        self.resolutionRowLayout.setObjectName(u"resolutionRowLayout")
+        self.resolutionLabel = QLabel(self.verticalLayoutWidget_4)
+        self.resolutionLabel.setObjectName(u"resolutionLabel")
+
+        self.resolutionRowLayout.addWidget(self.resolutionLabel)
+
+        self.resolutionCurrentButton = QPushButton(self.verticalLayoutWidget_4)
+        self.resolutionCurrentButton.setObjectName(u"resolutionCurrentButton")
+
+        self.resolutionRowLayout.addWidget(self.resolutionCurrentButton)
+
+        self.resolution480pButton = QPushButton(self.verticalLayoutWidget_4)
+        self.resolution480pButton.setObjectName(u"resolution480pButton")
+
+        self.resolutionRowLayout.addWidget(self.resolution480pButton)
+
+        self.resolution720pButton = QPushButton(self.verticalLayoutWidget_4)
+        self.resolution720pButton.setObjectName(u"resolution720pButton")
+
+        self.resolutionRowLayout.addWidget(self.resolution720pButton)
+
+        self.resolution1080pButton = QPushButton(self.verticalLayoutWidget_4)
+        self.resolution1080pButton.setObjectName(u"resolution1080pButton")
+
+        self.resolutionRowLayout.addWidget(self.resolution1080pButton)
+
+        self.resolutionCustomButton = QPushButton(self.verticalLayoutWidget_4)
+        self.resolutionCustomButton.setObjectName(u"resolutionCustomButton")
+
+        self.resolutionRowLayout.addWidget(self.resolutionCustomButton)
+
+        self.resolutionRowLayout.setStretch(0, 2)
+        self.resolutionRowLayout.setStretch(1, 1)
+        self.resolutionRowLayout.setStretch(2, 1)
+        self.resolutionRowLayout.setStretch(3, 1)
+        self.resolutionRowLayout.setStretch(4, 1)
+
+        self.presetSettingsLayout.addLayout(self.resolutionRowLayout)
+
+        self.widget = QWidget(self.centralwidget)
+        self.widget.setObjectName(u"widget")
+        self.widget.setGeometry(QRect(440, 310, 451, 71))
+        self.horizontalLayoutWidget_6 = QWidget(self.widget)
+        self.horizontalLayoutWidget_6.setObjectName(u"horizontalLayoutWidget_6")
+        self.horizontalLayoutWidget_6.setGeometry(QRect(0, 10, 441, 61))
+        self.horizontalLayout_7 = QHBoxLayout(self.horizontalLayoutWidget_6)
+        self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
+        self.horizontalLayout_7.setContentsMargins(0, 0, 0, 0)
+        self.commandDisplay = QTextEdit(self.horizontalLayoutWidget_6)
+        self.commandDisplay.setObjectName(u"commandDisplay")
+        self.commandDisplay.setMaximumSize(QSize(16777215, 80))
+        self.commandDisplay.setStyleSheet(u"background-color: #f0f0f0; font-family: Consolas;")
+        self.commandDisplay.setReadOnly(False)
+
+        self.horizontalLayout_7.addWidget(self.commandDisplay)
+
+        self.copyCmdButton = QPushButton(self.widget)
+        self.copyCmdButton.setObjectName(u"copyCmdButton")
+        self.copyCmdButton.setGeometry(QRect(374, 0, 71, 21))
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QMenuBar(MainWindow)
         self.menubar.setObjectName(u"menubar")
-        self.menubar.setGeometry(QRect(0, 0, 914, 22))
+        self.menubar.setGeometry(QRect(0, 0, 1402, 22))
         self.menumainwindow = QMenu(self.menubar)
         self.menumainwindow.setObjectName(u"menumainwindow")
         MainWindow.setMenuBar(self.menubar)
@@ -289,40 +397,57 @@ class Ui_MainWindow(object):
 
     def retranslateUi(self, MainWindow):
         MainWindow.setWindowTitle(QCoreApplication.translate("MainWindow", u"MainWindow", None))
-        self.label.setText(QCoreApplication.translate("MainWindow", u"\u0412\u0445\u043e\u0434\u043d\u043e\u0439 \u0444\u0430\u0439\u043b:", None))
-        self.browseButton.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0431\u0437\u043e\u0440...", None))
-        self.label_2.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u0434\u0435\u043a:", None))
-        self.codecCombo.setItemText(0, QCoreApplication.translate("MainWindow", u"libx264", None))
-        self.codecCombo.setItemText(1, QCoreApplication.translate("MainWindow", u"libx265", None))
-        self.codecCombo.setItemText(2, QCoreApplication.translate("MainWindow", u"copy", None))
-
-        self.label_3.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043d\u0442\u0435\u0439\u043d\u0435\u0440:", None))
-        self.containerCombo.setItemText(0, QCoreApplication.translate("MainWindow", u"mp4", None))
-        self.containerCombo.setItemText(1, QCoreApplication.translate("MainWindow", u"mkv", None))
-
-        self.label_4.setText(QCoreApplication.translate("MainWindow", u"\u0420\u0430\u0437\u0440\u0435\u0448\u0435\u043d\u0438\u0435:", None))
-        self.resolutionCombo.setItemText(0, QCoreApplication.translate("MainWindow", u"480p", None))
-        self.resolutionCombo.setItemText(1, QCoreApplication.translate("MainWindow", u"720p", None))
-        self.resolutionCombo.setItemText(2, QCoreApplication.translate("MainWindow", u"1080p", None))
-        self.resolutionCombo.setItemText(3, QCoreApplication.translate("MainWindow", u"custom", None))
-
-        self.label_5.setText(QCoreApplication.translate("MainWindow", u"Custom (width:height):", None))
-        self.customResolutionEdit.setPlaceholderText(QCoreApplication.translate("MainWindow", u"1920:1080", None))
         self.label_6.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043c\u0430\u043d\u0434\u0430 FFmpeg:", None))
-        self.copyCmdButton.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.runButton.setText(QCoreApplication.translate("MainWindow", u"\u0417\u0430\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u043a\u043e\u0434\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435", None))
         self.pauseResumeButton.setText(QCoreApplication.translate("MainWindow", u"\u23f8 \u041f\u0430\u0443\u0437\u0430", None))
-        self.savePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.loadPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0417\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
-        self.deletePresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
-        self.exportPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
-        self.importPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
         self.label_7.setText(QCoreApplication.translate("MainWindow", u"\u041b\u043e\u0433 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f:", None))
         self.openOutputFolderButton.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u043f\u0430\u043f\u043a\u0443", None))
         self.videoPlayButton.setText(QCoreApplication.translate("MainWindow", u"\u25b6 Play", None))
         self.videoStopButton.setText(QCoreApplication.translate("MainWindow", u"\u23f9 Stop", None))
         self.videoTimeLabel.setText(QCoreApplication.translate("MainWindow", u"00:00 / 00:00", None))
         self.videoMuteButton.setText(QCoreApplication.translate("MainWindow", u"\U0000200b\U0001f50a", None))
+        ___qtablewidgetitem = self.queueTableWidget.horizontalHeaderItem(0)
+        ___qtablewidgetitem.setText(QCoreApplication.translate("MainWindow", u"\u0412\u0445\u043e\u0434\u043d\u043e\u0439 \u0444\u0430\u0439\u043b", None));
+        ___qtablewidgetitem1 = self.queueTableWidget.horizontalHeaderItem(1)
+        ___qtablewidgetitem1.setText(QCoreApplication.translate("MainWindow", u"\u041f\u0440\u0435\u0441\u0435\u0442", None));
+        ___qtablewidgetitem2 = self.queueTableWidget.horizontalHeaderItem(2)
+        ___qtablewidgetitem2.setText(QCoreApplication.translate("MainWindow", u"\u0421\u0442\u0430\u0442\u0443\u0441", None));
+        ___qtablewidgetitem3 = self.queueTableWidget.horizontalHeaderItem(3)
+        ___qtablewidgetitem3.setText(QCoreApplication.translate("MainWindow", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None));
+        self.addFilesButton.setText(QCoreApplication.translate("MainWindow", u"\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0444\u0430\u0439\u043b\u044b...", None))
+        self.removeFromQueueButton.setText(QCoreApplication.translate("MainWindow", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0438\u0437 \u043e\u0447\u0435\u0440\u0435\u0434\u0438", None))
+        self.queueLabel.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0447\u0435\u0440\u0435\u0434\u044c \u0444\u0430\u0439\u043b\u043e\u0432:", None))
+        self.label.setText(QCoreApplication.translate("MainWindow", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
+        self.presetExportButton.setText(QCoreApplication.translate("MainWindow", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
+        self.presetImportButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
+        ___qtablewidgetitem4 = self.presetsTableWidget.horizontalHeaderItem(0)
+        ___qtablewidgetitem4.setText(QCoreApplication.translate("MainWindow", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None));
+        ___qtablewidgetitem5 = self.presetsTableWidget.horizontalHeaderItem(1)
+        ___qtablewidgetitem5.setText(QCoreApplication.translate("MainWindow", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None));
+        ___qtablewidgetitem6 = self.presetsTableWidget.horizontalHeaderItem(2)
+        ___qtablewidgetitem6.setText(QCoreApplication.translate("MainWindow", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None));
+        ___qtablewidgetitem7 = self.presetsTableWidget.horizontalHeaderItem(3)
+        ___qtablewidgetitem7.setText(QCoreApplication.translate("MainWindow", u"\u041f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c \u043a \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u043c\u0443 \u0444\u0430\u0439\u043b\u0443", None));
+        self.createPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
+        self.savePresetChangesButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
+        self.codecLabel.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u0434\u0435\u043a", None))
+        self.codecCurrentButton.setText(QCoreApplication.translate("MainWindow", u"current", None))
+        self.codecLibx264Button.setText(QCoreApplication.translate("MainWindow", u"libx264", None))
+        self.codecLibx265Button.setText(QCoreApplication.translate("MainWindow", u"libx265", None))
+        self.codecCustomButton.setText(QCoreApplication.translate("MainWindow", u"custom", None))
+        self.containerLabel.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043d\u0442\u0435\u0439\u043d\u0435\u0440", None))
+        self.containerCurrentButton.setText(QCoreApplication.translate("MainWindow", u"current", None))
+        self.containerMp4Button.setText(QCoreApplication.translate("MainWindow", u"mp4", None))
+        self.containerMkvButton.setText(QCoreApplication.translate("MainWindow", u"mkv", None))
+        self.containerCustomButton.setText(QCoreApplication.translate("MainWindow", u"custom", None))
+        self.resolutionLabel.setText(QCoreApplication.translate("MainWindow", u"\u0420\u0430\u0437\u0440\u0435\u0448\u0435\u043d\u0438\u0435 ", None))
+        self.resolutionCurrentButton.setText(QCoreApplication.translate("MainWindow", u"current", None))
+        self.resolution480pButton.setText(QCoreApplication.translate("MainWindow", u"480p", None))
+        self.resolution720pButton.setText(QCoreApplication.translate("MainWindow", u"720p", None))
+        self.resolution1080pButton.setText(QCoreApplication.translate("MainWindow", u"1080p", None))
+        self.resolutionCustomButton.setText(QCoreApplication.translate("MainWindow", u"custom", None))
+        self.copyCmdButton.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.menumainwindow.setTitle(QCoreApplication.translate("MainWindow", u"mainwindow", None))
     # retranslateUi
 
