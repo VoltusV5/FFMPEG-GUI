@@ -22,7 +22,7 @@
      <rect>
       <x>20</x>
       <y>590</y>
-      <width>431</width>
+      <width>331</width>
       <height>41</height>
      </rect>
     </property>
@@ -44,13 +44,6 @@
        </property>
        <property name="text">
         <string>Пауза</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="showFFmpegLogButton">
-       <property name="text">
-        <string>Показать лог ffmpeg</string>
        </property>
       </widget>
      </item>
@@ -614,7 +607,7 @@
       <x>20</x>
       <y>650</y>
       <width>791</width>
-      <height>261</height>
+      <height>201</height>
      </rect>
     </property>
     <widget class="QTextEdit" name="logDisplay">
@@ -623,7 +616,7 @@
        <x>0</x>
        <y>30</y>
        <width>771</width>
-       <height>201</height>
+       <height>171</height>
       </rect>
      </property>
      <property name="readOnly">
@@ -647,9 +640,9 @@
    <widget class="QProgressBar" name="totalQueueProgressBar">
     <property name="geometry">
      <rect>
-      <x>460</x>
+      <x>360</x>
       <y>600</y>
-      <width>331</width>
+      <width>431</width>
       <height>21</height>
      </rect>
     </property>
@@ -663,9 +656,9 @@
    <widget class="QWidget" name="widget" native="true">
     <property name="geometry">
      <rect>
-      <x>810</x>
-      <y>710</y>
-      <width>471</width>
+      <x>820</x>
+      <y>680</y>
+      <width>591</width>
       <height>191</height>
      </rect>
     </property>
@@ -674,8 +667,8 @@
       <rect>
        <x>0</x>
        <y>22</y>
-       <width>471</width>
-       <height>141</height>
+       <width>491</width>
+       <height>151</height>
       </rect>
      </property>
      <layout class="QHBoxLayout" name="horizontalLayout_7">
@@ -700,8 +693,8 @@
     <widget class="QPushButton" name="copyCmdButton">
      <property name="geometry">
       <rect>
-       <x>380</x>
-       <y>10</y>
+       <x>500</x>
+       <y>20</y>
        <width>91</width>
        <height>21</height>
       </rect>
@@ -721,6 +714,45 @@
      </property>
      <property name="text">
       <string>Команда FFmpeg:</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="saveCurrentCommand">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>100</y>
+       <width>91</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Сохранить</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="deleteSavedCommand">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>140</y>
+       <width>91</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Удалить</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="loadSavedCommand">
+     <property name="geometry">
+      <rect>
+       <x>500</x>
+       <y>60</y>
+       <width>91</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Выбрать</string>
      </property>
     </widget>
    </widget>

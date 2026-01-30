@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowTitle("OpenFF GUI - MVP")
-        self.resize(900, 680)
+        self.resize(1425, 900)
         # Переопределяем стили под тёмную тему (ui_mainwindow генерируется из .ui)
         if hasattr(self.ui, 'runButton'):
             self.ui.runButton.setStyleSheet(
@@ -173,10 +173,9 @@ class MainWindow(QMainWindow):
 
         # Инициализация редактора пресетов (новый UI)
         self.initPresetEditor()
-        # По умолчанию скрываем интерфейс настройки пресетов,
-        # он появится после выбора первого файла в очереди
+        # Настройки пресетов видны сразу, не зависят от выбора файла в очереди
         if hasattr(self.ui, 'presetEditorContainer'):
-            self.ui.presetEditorContainer.hide()
+            self.ui.presetEditorContainer.show()
 
         # Подложка таблиц и номера строк — серый фон (как основная подложка)
         for tbl in [getattr(self.ui, "queueTableWidget", None), getattr(self.ui, "presetsTableWidget", None)]:
@@ -215,10 +214,10 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'savePresetChangesButton'):
             self.ui.savePresetChangesButton.clicked.connect(self.saveCurrentPreset)
 
-        # Кнопка показа/скрытия лога
+        # Лог выполнения всегда включён; кнопка «Показать лог» убрана
         if hasattr(self.ui, 'showFFmpegLogButton'):
-            self.ui.showFFmpegLogButton.clicked.connect(self.toggleLogVisibility)
-        
+            self.ui.showFFmpegLogButton.hide()
+
         # Подключение кнопок предпросмотра (если они существуют)
         if hasattr(self.ui, 'videoPlayButton'):
             self.ui.videoPlayButton.clicked.connect(self.toggleVideoPlayback)
@@ -256,14 +255,9 @@ class MainWindow(QMainWindow):
         # Инициализация статуса
         self.updateStatus("Готов")
 
-        # Состояние показа лога
-        self.isLogVisible = False
-        self.normalSize = (800, 680)  # Обычный размер
-        self.expandedSize = (900, 950)  # Размер с видимым логом
+        # Лог выполнения всегда виден (кнопка отключена)
+        self.isLogVisible = True
 
-        # Начально скрываем лог
-        self.hideLog()
-    
     def initQueue(self):
         """Инициализирует таблицу очереди"""
         if not hasattr(self.ui, 'queueTableWidget'):
@@ -279,22 +273,9 @@ class MainWindow(QMainWindow):
         # Разрешаем множественное выделение строк (для массового применения пресетов)
         table.setSelectionMode(QAbstractItemView.ExtendedSelection)
 
-        # Настройка столбцов
-        header = table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.Fixed)  # Входной файл - фиксированная ширина
-        table.setColumnWidth(0, 200)  # Уменьшено для оптимизации места
-        header.setSectionResizeMode(1, QHeaderView.Fixed)  # Выходной файл
-        table.setColumnWidth(1, 200)  # Оптимизированная ширина
-        header.setSectionResizeMode(2, QHeaderView.Fixed)  # Пресет
-        table.setColumnWidth(2, 80)
-        header.setSectionResizeMode(3, QHeaderView.Fixed)  # Статус
-        table.setColumnWidth(3, 100)
-        header.setSectionResizeMode(4, QHeaderView.Fixed)  # Прогресс
-        table.setColumnWidth(4, 80)
-        header.setSectionResizeMode(5, QHeaderView.Fixed)  # Открыть
-        table.setColumnWidth(5, 78)   # "Открыть" — чтобы текст помещался
-        
+        # Настройка столбцов (ширины не меняются при выборе файла)
+        self._applyQueueTableColumnWidths()
+
         # Настройка drag-and-drop
         table.setAcceptDrops(True)
         table.setDragDropMode(QAbstractItemView.DropOnly)
@@ -311,6 +292,26 @@ class MainWindow(QMainWindow):
         # Переопределяем методы drag-and-drop (через переопределение класса таблицы)
         # Это будет сделано через установку обработчиков событий
         self.setupDragAndDrop()
+
+    def _applyQueueTableColumnWidths(self):
+        """Ширины колонок таблицы очереди: при пустой таблице — без нумерации и без пустого места справа; при наличии строк — нумерация за счёт колонок Входной/Выходной файл."""
+        if not hasattr(self.ui, 'queueTableWidget'):
+            return
+        table = self.ui.queueTableWidget
+        header = table.horizontalHeader()
+        header.setStretchLastSection(False)
+        has_rows = table.rowCount() > 0
+        if has_rows:
+            table.verticalHeader().setVisible(True)
+            # Колонки 0 и 1 уменьшены на 15 px каждая под нумерацию строк
+            widths = (200, 200, 80, 100, 80, 78)
+        else:
+            table.verticalHeader().setVisible(False)
+            # Полная ширина колонок — нет пустого места справа
+            widths = (215, 215, 80, 100, 80, 78)
+        for col, w in enumerate(widths):
+            header.setSectionResizeMode(col, QHeaderView.Fixed)
+            table.setColumnWidth(col, w)
 
     # ===== Инициализация и логика редактора пресетов (новый UI) =====
 
@@ -467,13 +468,13 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'resolutionButtonGroup'):
             self.resolutionButtonGroup.buttonClicked.connect(self.onResolutionButtonClicked)
 
-        # Аудио-кодеки: current по умолчанию, + custom
+        # Аудио-кодеки: current в начале и по умолчанию, затем aac, mp3, pcm_s16le, pcm_s24le, custom
         self.audioCodecButtonGroup = QButtonGroup(self)
         self.audioCodecButtonGroup.setExclusive(True)
         audio_row = QHBoxLayout()
         audio_row.setSpacing(5)
         audio_row.addWidget(QLabel("Аудио-кодеки:"))
-        for name, text in [("Aac", "aac"), ("Mp3", "mp3"), ("Pcm16", "pcm_s16le"), ("Pcm24", "pcm_s24le"), ("Current", "current"), ("Custom", "custom")]:
+        for name, text in [("Current", "current"), ("Aac", "aac"), ("Mp3", "mp3"), ("Pcm16", "pcm_s16le"), ("Pcm24", "pcm_s24le"), ("Custom", "custom")]:
             btn = QPushButton(text)
             btn.setCheckable(True)
             btn.setObjectName(f"audioCodec{name}Button")
@@ -574,39 +575,40 @@ class MainWindow(QMainWindow):
         self._tuneEdit.setMinimumWidth(80)
         grid.addWidget(self._tuneEdit, 2, 5)
 
-        self.ui.presetSettingsLayout.addLayout(grid)
-
-        # Строка: Preset (medium), Threads — выравнивание по правому краю
-        row_preset = QHBoxLayout()
-        row_preset.addStretch()
-        row_preset.addWidget(QLabel("Preset:"))
+        # Строка 3: колонка 0 — чекбоксы друг под другом; на том же уровне — Preset и Threads
+        col0_widget = QWidget(parent_4)
+        col0_layout = QVBoxLayout(col0_widget)
+        col0_layout.setContentsMargins(0, 0, 0, 0)
+        col0_layout.setSpacing(4)
+        self._checkTagHvc1 = QCheckBox(parent_4)
+        self._checkTagHvc1.setText("-tag:v hvc1")
+        self._checkTagHvc1.setToolTip("Для совместимости HEVC")
+        col0_layout.addWidget(self._checkTagHvc1)
+        self._checkVfLanczos = QCheckBox(parent_4)
+        self._checkVfLanczos.setText(":flags=lanczos")
+        self._checkVfLanczos.setToolTip("-vf scale=1280x720:flags=lanczos")
+        col0_layout.addWidget(self._checkVfLanczos)
+        grid.addWidget(col0_widget, 3, 0, 1, 2)
+        l_preset = QLabel("Preset:")
+        l_preset.setMinimumWidth(label_w)
+        grid.addWidget(l_preset, 3, 2)
         self._presetCombo = QComboBox(parent_4)
         for p in ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo"]:
             self._presetCombo.addItem(p)
         self._presetCombo.setCurrentIndex(5)
         self._presetCombo.setMinimumWidth(100)
-        row_preset.addWidget(self._presetCombo)
-        row_preset.addWidget(QLabel("Threads:"))
+        grid.addWidget(self._presetCombo, 3, 3)
+        l_threads = QLabel("Threads:")
+        l_threads.setMinimumWidth(label_w)
+        grid.addWidget(l_threads, 3, 4)
         self._threadsSpin = QSpinBox(parent_4)
         self._threadsSpin.setRange(0, 64)
         self._threadsSpin.setValue(0)
         self._threadsSpin.setSpecialValueText("auto")
         self._threadsSpin.setMinimumWidth(80)
-        row_preset.addWidget(self._threadsSpin)
-        self.ui.presetSettingsLayout.addLayout(row_preset)
+        grid.addWidget(self._threadsSpin, 3, 5)
 
-        # Одна строка с флажками: tag, flags=lanczos
-        row_flags = QHBoxLayout()
-        self._checkTagHvc1 = QCheckBox(parent_4)
-        self._checkTagHvc1.setText("tag")
-        self._checkTagHvc1.setToolTip("-tag:v hvc1 (для совместимости HEVC)")
-        row_flags.addWidget(self._checkTagHvc1)
-        self._checkVfLanczos = QCheckBox(parent_4)
-        self._checkVfLanczos.setText("flags=lanczos")
-        self._checkVfLanczos.setToolTip("-vf scale=1280x720:flags=lanczos")
-        row_flags.addWidget(self._checkVfLanczos)
-        row_flags.addStretch()
-        self.ui.presetSettingsLayout.addLayout(row_flags)
+        self.ui.presetSettingsLayout.addLayout(grid)
 
         for w in (self._crfSpin, self._bitrateSpin, self._fpsSpin, self._audioBitrateSpin, self._sampleRateSpin,
                   self._keyintSpin, self._presetCombo, self._profileLevelEdit, self._pixelFormatEdit, self._tuneEdit, self._threadsSpin,
@@ -941,7 +943,9 @@ class MainWindow(QMainWindow):
 
         # Восстанавливаем сигналы
         table.blockSignals(False)
-    
+        # Пустая таблица — без нумерации и без пустого места; при строках — нумерация за счёт колонок 0 и 1
+        self._applyQueueTableColumnWidths()
+
     def selectQueueItem(self, index):
         """Выделяет элемент очереди по индексу"""
         if not hasattr(self.ui, 'queueTableWidget') or index < 0 or index >= len(self.queue):
@@ -984,12 +988,6 @@ class MainWindow(QMainWindow):
 
         # Обновляем редактор пресетов под текущий файл
         self.syncPresetEditorWithQueueItem(item)
-
-        # При выборе файла показываем редактор пресетов
-        if hasattr(self.ui, 'presetEditorContainer'):
-            self.ui.presetEditorContainer.show()
-        # Расширяем окно для показа редактора (независимо от лога)
-        self.resize(1300, 680)
 
         # Полоска обрезки привязана к каждой позиции очереди — показываем данные этого файла
         self._updateTrimSegmentBar()
@@ -1641,39 +1639,6 @@ class MainWindow(QMainWindow):
         self.commandManuallyEdited = False
         self.updateQueueTable()
 
-    # ===== Методы для управления видимостью лога =====
-
-    def toggleLogVisibility(self):
-        """Переключает видимость лога FFmpeg и размер окна."""
-        if self.isLogVisible:
-            self.hideLog()
-        else:
-            self.showLog()
-
-    def showLog(self):
-        """Показывает лог и расширяет окно."""
-        if hasattr(self.ui, 'logDisplay'):
-            self.ui.logDisplay.show()
-        if hasattr(self.ui, 'openOutputFolderButton'):
-            self.ui.openOutputFolderButton.show()
-        # Всегда расширяем окно при показе лога
-        self.resize(self.expandedSize[0], self.expandedSize[1])
-        self.isLogVisible = True
-        if hasattr(self.ui, 'showFFmpegLogButton'):
-            self.ui.showFFmpegLogButton.setText("Скрыть лог FFmpeg")
-
-    def hideLog(self):
-        """Скрывает лог и сжимает окно."""
-        if hasattr(self.ui, 'logDisplay'):
-            self.ui.logDisplay.hide()
-        if hasattr(self.ui, 'openOutputFolderButton'):
-            self.ui.openOutputFolderButton.hide()
-        # Всегда сжимаем окно при скрытии лога
-        self.resize(self.normalSize[0], self.normalSize[1])
-        self.isLogVisible = False
-        if hasattr(self.ui, 'showFFmpegLogButton'):
-            self.ui.showFFmpegLogButton.setText("Показать лог FFmpeg")
-    
     def getSelectedQueueItem(self):
         """Возвращает выделенный элемент очереди или None"""
         if self.selectedQueueIndex >= 0 and self.selectedQueueIndex < len(self.queue):
