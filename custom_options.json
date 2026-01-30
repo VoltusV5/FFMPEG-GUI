@@ -7,5 +7,10 @@
     "h",
     "fdgjfdggfj",
     "webm"
-  ]
+  ],
+  "codecs": [],
+  "resolutions": [
+    "800:600"
+  ],
+  "audio_codecs": []
 }

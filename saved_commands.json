@@ -1,0 +1,8 @@
+{
+  "commands": [
+    {
+      "name": "cmd 1",
+      "command": "ffmpeg -i \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\кееееек рашн_converted_converted_converted.mp4\" -vf scale=1280:720:flags=lanczos -crf 22 -b:v 14k -r 50 -g 50 -c:a copy -b:a 6k -ar 44100 -tag:v hvc1 \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\кееееек рашн_converted_converted_converted_converted.mp4\""
+    }
+  ]
+}

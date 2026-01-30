@@ -444,6 +444,13 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QPushButton" name="savePresetWithCustomParamsButton">
+          <property name="text">
+           <string>Сохранить пресет с пользовательскими параметрами</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
      </layout>

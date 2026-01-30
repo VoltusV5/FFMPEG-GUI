@@ -51,6 +51,7 @@ class QueueItem:
         self.keyint = 0   # 0 = не задано, >0 = значение -g для FFmpeg
         self.tag_hvc1 = False
         self.vf_lanczos = False
+        self.extra_args = ""  # Доп. параметры FFmpeg, сохраняемые в пресет
         
         # Для паузы на Windows
         self.encoding_duration = 0   # Время кодирования до паузы
@@ -81,8 +82,11 @@ class QueueItem:
             self.tune = preset_data.get('tune', '') or ''
             self.threads = int(preset_data.get('threads', 0) or 0)
             self.keyint = int(preset_data.get('keyint', 0) or 0)
-            self.tag_hvc1 = bool(preset_data.get('tag_hvc1', False))
-            self.vf_lanczos = bool(preset_data.get('vf_lanczos', False))
+            v = preset_data.get('tag_hvc1', False)
+            self.tag_hvc1 = (v is True) or (str(v).strip() == "1")
+            v = preset_data.get('vf_lanczos', False)
+            self.vf_lanczos = (v is True) or (str(v).strip() == "1")
+            self.extra_args = preset_data.get('extra_args', '') or ''
     
     def getStatusText(self):
         """Возвращает текстовое представление статуса"""

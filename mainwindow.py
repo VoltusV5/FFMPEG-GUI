@@ -4,6 +4,7 @@ import platform
 import shlex
 import re
 import json
+import shutil
 from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
                                QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
@@ -127,9 +128,13 @@ class MainWindow(QMainWindow):
         self.ffmpegProcess = QProcess(self)
         self.presetManager = PresetManager()
         self.currentPresetName = None  # Текущий редактируемый пресет
-        # Пользовательские контейнеры (mov, webm и т.д.) — сохраняются между запусками
+        # Пользовательские опции (контейнеры, кодеки, разрешения, аудио-кодеки) — сохраняются между запусками
         self.customContainers = []
+        self.customCodecs = []
+        self.customResolutions = []
+        self.customAudioCodecs = []
         self._customOptionsPath = os.path.join(os.path.dirname(__file__), "custom_options.json")
+        self._savedCommandsPath = os.path.join(os.path.dirname(__file__), "saved_commands.json")
         self._loadCustomOptions()
         self.currentCodecCustom = ""   # Кастомный кодек для редактора пресетов
         self.currentContainerCustom = ""  # Кастомный контейнер
@@ -201,18 +206,31 @@ class MainWindow(QMainWindow):
             self.ui.runButton.clicked.connect(self.startQueueProcessing)
         if hasattr(self.ui, 'copyCmdButton'):
             self.ui.copyCmdButton.clicked.connect(self.copyCommand)
+        if hasattr(self.ui, 'saveCurrentCommand'):
+            self.ui.saveCurrentCommand.clicked.connect(self.saveCurrentCommand)
+        if hasattr(self.ui, 'loadSavedCommand'):
+            self.ui.loadSavedCommand.clicked.connect(self.loadSavedCommand)
+        if hasattr(self.ui, 'deleteSavedCommand'):
+            self.ui.deleteSavedCommand.clicked.connect(self.deleteSavedCommand)
         if hasattr(self.ui, 'openOutputFolderButton'):
             self.ui.openOutputFolderButton.clicked.connect(self.openOutputFolder)
 
         # Кнопки редактора пресетов (новый UI)
         if hasattr(self.ui, 'presetExportButton'):
-            self.ui.presetExportButton.clicked.connect(self.exportSelectedPreset)
+            self.ui.presetExportButton.clicked.connect(self.exportData)
         if hasattr(self.ui, 'presetImportButton'):
-            self.ui.presetImportButton.clicked.connect(self.importPresetFromFile)
+            self.ui.presetImportButton.clicked.connect(self.importData)
         if hasattr(self.ui, 'createPresetButton'):
             self.ui.createPresetButton.clicked.connect(self.createPreset)
         if hasattr(self.ui, 'savePresetChangesButton'):
             self.ui.savePresetChangesButton.clicked.connect(self.saveCurrentPreset)
+        # Кнопка сохранения пресета с пользовательскими доп. параметрами
+        for attr in ("savePresetWithCustomParamsButton", "savePresetCustomParamsButton", "savePresetWithExtraParamsButton"):
+            btn = getattr(self.ui, attr, None)
+            if btn is not None:
+                btn.clicked.connect(self.savePresetWithCustomParams)
+                btn.setToolTip("Сохраняет пресет вместе с дополнительными параметрами,\n"
+                               "которые вы вручную дописали в команду FFmpeg.")
 
         # Лог выполнения всегда включён; кнопка «Показать лог» убрана
         if hasattr(self.ui, 'showFFmpegLogButton'):
@@ -316,7 +334,7 @@ class MainWindow(QMainWindow):
     # ===== Инициализация и логика редактора пресетов (новый UI) =====
 
     def _loadCustomOptions(self):
-        """Загружает список пользовательских контейнеров из custom_options.json."""
+        """Загружает списки пользовательских опций (контейнеры, кодеки, разрешения, аудио-кодеки) из custom_options.json."""
         if not os.path.exists(self._customOptionsPath):
             return
         try:
@@ -325,17 +343,57 @@ class MainWindow(QMainWindow):
             self.customContainers = data.get("containers", [])
             if not isinstance(self.customContainers, list):
                 self.customContainers = []
+            self.customCodecs = data.get("codecs", [])
+            if not isinstance(self.customCodecs, list):
+                self.customCodecs = []
+            self.customResolutions = data.get("resolutions", [])
+            if not isinstance(self.customResolutions, list):
+                self.customResolutions = []
+            self.customAudioCodecs = data.get("audio_codecs", [])
+            if not isinstance(self.customAudioCodecs, list):
+                self.customAudioCodecs = []
         except Exception:
             self.customContainers = []
+            self.customCodecs = []
+            self.customResolutions = []
+            self.customAudioCodecs = []
 
     def _saveCustomOptions(self):
-        """Сохраняет список пользовательских контейнеров в custom_options.json."""
+        """Сохраняет списки пользовательских опций в custom_options.json."""
         try:
-            data = {"containers": self.customContainers}
+            data = {
+                "containers": getattr(self, "customContainers", []),
+                "codecs": getattr(self, "customCodecs", []),
+                "resolutions": getattr(self, "customResolutions", []),
+                "audio_codecs": getattr(self, "customAudioCodecs", []),
+            }
             with open(self._customOptionsPath, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Ошибка сохранения custom_options: {e}")
+
+    def _loadSavedCommands(self):
+        """Загружает список сохранённых команд из saved_commands.json. Возвращает список dict с ключами name, command."""
+        if not os.path.exists(self._savedCommandsPath):
+            return []
+        try:
+            with open(self._savedCommandsPath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            lst = data.get("commands", [])
+            if not isinstance(lst, list):
+                return []
+            return [x for x in lst if isinstance(x, dict) and x.get("name") and x.get("command") is not None]
+        except Exception:
+            return []
+
+    def _saveSavedCommands(self, commands_list):
+        """Сохраняет список сохранённых команд в saved_commands.json. commands_list — список dict с ключами name, command."""
+        try:
+            data = {"commands": commands_list}
+            with open(self._savedCommandsPath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения saved_commands: {e}")
 
     def _showCustomContainerMenu(self):
         """Показывает выпадающее меню: сохранённые контейнеры + «Добавить»."""
@@ -382,6 +440,130 @@ class MainWindow(QMainWindow):
                 self.ui.containerCustomButton.setChecked(True)
             self.updateCommandFromPresetEditor()
 
+    def _showCustomCodecMenu(self):
+        """Выпадающее меню: сохранённые кодеки + «Добавить»."""
+        btn = getattr(self.ui, "codecCustomButton", None)
+        if btn is None:
+            return
+        menu = QMenu(self)
+        current = (self.currentCodecCustom or "").lower()
+        for name in getattr(self, "customCodecs", []):
+            if not name or not isinstance(name, str):
+                continue
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            if name.lower() == current:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked=False, n=name: self._onCustomCodecSelected(n))
+        menu.addSeparator()
+        add_action = menu.addAction("Добавить…")
+        add_action.triggered.connect(self._onAddCustomCodec)
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _onCustomCodecSelected(self, name):
+        self.currentCodecCustom = name
+        if hasattr(self.ui, "codecCustomButton"):
+            self.ui.codecCustomButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
+    def _onAddCustomCodec(self):
+        text, ok = QInputDialog.getText(
+            self, "Пользовательский кодек", "Введите имя видеокодека (например, libx264):",
+            text=self.currentCodecCustom or "libx264"
+        )
+        if ok and text.strip():
+            name = text.strip()
+            if name not in self.customCodecs:
+                self.customCodecs.append(name)
+                self._saveCustomOptions()
+            self.currentCodecCustom = name
+            if hasattr(self.ui, "codecCustomButton"):
+                self.ui.codecCustomButton.setChecked(True)
+            self.updateCommandFromPresetEditor()
+
+    def _showCustomResolutionMenu(self):
+        """Выпадающее меню: сохранённые разрешения + «Добавить»."""
+        btn = getattr(self.ui, "resolutionCustomButton", None)
+        if btn is None:
+            return
+        menu = QMenu(self)
+        current = (self.currentResolutionCustom or "").replace(" ", "")
+        for name in getattr(self, "customResolutions", []):
+            if not name or not isinstance(name, str):
+                continue
+            norm = name.replace(" ", "")
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            if norm == current or norm == current.replace(":", "x"):
+                action.setChecked(True)
+            action.triggered.connect(lambda checked=False, n=name: self._onCustomResolutionSelected(n))
+        menu.addSeparator()
+        add_action = menu.addAction("Добавить…")
+        add_action.triggered.connect(self._onAddCustomResolution)
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _onCustomResolutionSelected(self, name):
+        self.currentResolutionCustom = name.strip().replace("x", ":").replace(" ", "")
+        if hasattr(self.ui, "resolutionCustomButton"):
+            self.ui.resolutionCustomButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
+    def _onAddCustomResolution(self):
+        text, ok = QInputDialog.getText(
+            self, "Пользовательское разрешение", "Введите разрешение (например, 1920:1080 или 1920x1080):",
+            text=self.currentResolutionCustom or "1920:1080"
+        )
+        if ok and text.strip():
+            name = text.strip().replace("x", ":").replace(" ", "")
+            if name not in self.customResolutions:
+                self.customResolutions.append(name)
+                self._saveCustomOptions()
+            self.currentResolutionCustom = name
+            if hasattr(self.ui, "resolutionCustomButton"):
+                self.ui.resolutionCustomButton.setChecked(True)
+            self.updateCommandFromPresetEditor()
+
+    def _showCustomAudioCodecMenu(self):
+        """Выпадающее меню: сохранённые аудио-кодеки + «Добавить»."""
+        btn = getattr(self, "_audioCodecCustomButton", None)
+        if btn is None:
+            return
+        menu = QMenu(self)
+        current = (self.currentAudioCodecCustom or "").lower()
+        for name in getattr(self, "customAudioCodecs", []):
+            if not name or not isinstance(name, str):
+                continue
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            if name.lower() == current:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked=False, n=name: self._onCustomAudioCodecSelected(n))
+        menu.addSeparator()
+        add_action = menu.addAction("Добавить…")
+        add_action.triggered.connect(self._onAddCustomAudioCodec)
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _onCustomAudioCodecSelected(self, name):
+        self.currentAudioCodecCustom = name
+        if hasattr(self, "_audioCodecCustomButton"):
+            self._audioCodecCustomButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
+    def _onAddCustomAudioCodec(self):
+        text, ok = QInputDialog.getText(
+            self, "Пользовательский аудио-кодек", "Введите имя аудио-кодека (например, aac, libopus):",
+            text=self.currentAudioCodecCustom or "aac"
+        )
+        if ok and text.strip():
+            name = text.strip()
+            if name not in self.customAudioCodecs:
+                self.customAudioCodecs.append(name)
+                self._saveCustomOptions()
+            self.currentAudioCodecCustom = name
+            if hasattr(self, "_audioCodecCustomButton"):
+                self._audioCodecCustomButton.setChecked(True)
+            self.updateCommandFromPresetEditor()
+
     def initPresetEditor(self):
         """Настраивает таблицу пресетов и группы кнопок codec/container/resolution."""
         # Если нужных виджетов нет в UI, просто выходим
@@ -402,7 +584,7 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
         table.setColumnWidth(0, 125)
-        table.setColumnWidth(1, 275)  # Описание: 175 + 10 px
+        table.setColumnWidth(1, 260)  # Описание: 175 + 10 px
         table.setColumnWidth(2, 70)   # Удалить
         table.setColumnWidth(3, 88)   # Применить
 
@@ -1366,16 +1548,10 @@ class MainWindow(QMainWindow):
         return "current"
 
     def onAudioCodecButtonClicked(self, button):
-        """Обработчик выбора аудио-кодека: для Custom — диалог ввода."""
+        """Обработчик выбора аудио-кодека. Custom — выпадающее меню."""
         if hasattr(self, '_audioCodecCustomButton') and button is self._audioCodecCustomButton:
-            text, ok = QInputDialog.getText(
-                self,
-                "Пользовательский аудио-кодек",
-                "Введите имя аудио-кодека (например, aac, libopus):",
-                text=self.currentAudioCodecCustom or "aac"
-            )
-            if ok and text.strip():
-                self.currentAudioCodecCustom = text.strip()
+            self._showCustomAudioCodecMenu()
+            return
         self.updateCommandFromPresetEditor()
 
     def syncPresetEditorWithPresetData(self, preset):
@@ -1399,8 +1575,11 @@ class MainWindow(QMainWindow):
         elif codec == "copy" and hasattr(self, '_codecCopyButton'):
             self._codecCopyButton.setChecked(True)
         else:
-            # Кастомный кодек
+            # Кастомный кодек — добавляем в список сохранённых, если ещё нет
             self.currentCodecCustom = codec
+            if codec and codec not in getattr(self, "customCodecs", []):
+                self.customCodecs.append(codec)
+                self._saveCustomOptions()
             if hasattr(self.ui, 'codecCustomButton'):
                 self.ui.codecCustomButton.setChecked(True)
 
@@ -1422,6 +1601,9 @@ class MainWindow(QMainWindow):
             self._containerMxfButton.setChecked(True)
         else:
             self.currentContainerCustom = container
+            if container and container not in getattr(self, "customContainers", []):
+                self.customContainers.append(container)
+                self._saveCustomOptions()
             if hasattr(self.ui, 'containerCustomButton'):
                 self.ui.containerCustomButton.setChecked(True)
 
@@ -1443,7 +1625,11 @@ class MainWindow(QMainWindow):
         elif resolution == "4k" and hasattr(self, '_resolution4kButton'):
             self._resolution4kButton.setChecked(True)
         else:
-            self.currentResolutionCustom = resolution
+            self.currentResolutionCustom = resolution if (":" in resolution or "x" in resolution) else resolution
+            res_norm = (self.currentResolutionCustom or "").replace("x", ":")
+            if res_norm and res_norm not in getattr(self, "customResolutions", []):
+                self.customResolutions.append(res_norm)
+                self._saveCustomOptions()
             if hasattr(self.ui, 'resolutionCustomButton'):
                 self.ui.resolutionCustomButton.setChecked(True)
 
@@ -1461,6 +1647,9 @@ class MainWindow(QMainWindow):
             self._audioCodecCurrentButton.setChecked(True)
         elif hasattr(self, '_audioCodecCustomButton'):
             self.currentAudioCodecCustom = audio if audio not in ("aac", "mp3", "pcm_s16le", "pcm_s24le", "current") else (self.currentAudioCodecCustom or "aac")
+            if self.currentAudioCodecCustom and self.currentAudioCodecCustom not in getattr(self, "customAudioCodecs", []):
+                self.customAudioCodecs.append(self.currentAudioCodecCustom)
+                self._saveCustomOptions()
             self._audioCodecCustomButton.setChecked(True)
 
         # Основные настройки
@@ -1489,9 +1678,11 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_threadsSpin'):
             self._threadsSpin.setValue(int(preset.get("threads", 0) or 0))
         if hasattr(self, '_checkTagHvc1'):
-            self._checkTagHvc1.setChecked(bool(preset.get("tag_hvc1", False)))
+            v = preset.get("tag_hvc1", False)
+            self._checkTagHvc1.setChecked(v is True or str(v).strip() == "1")
         if hasattr(self, '_checkVfLanczos'):
-            self._checkVfLanczos.setChecked(bool(preset.get("vf_lanczos", False)))
+            v = preset.get("vf_lanczos", False)
+            self._checkVfLanczos.setChecked(v is True or str(v).strip() == "1")
 
     def syncPresetEditorWithQueueItem(self, item: QueueItem):
         """При выборе файла в очереди подтягиваем в редактор его текущие параметры."""
@@ -1520,17 +1711,10 @@ class MainWindow(QMainWindow):
     # --- Обработчики кликов по кнопкам редактора пресетов ---
 
     def onCodecButtonClicked(self, button):
-        """Обработчик выбора кодека в редакторе пресетов."""
+        """Обработчик выбора кодека в редакторе пресетов. Custom — выпадающее меню."""
         if hasattr(self.ui, 'codecCustomButton') and button is self.ui.codecCustomButton:
-            text, ok = QInputDialog.getText(
-                self,
-                "Пользовательский кодек",
-                "Введите имя видеокодека (например, libx264):",
-                text=self.currentCodecCustom or "libx264"
-            )
-            if ok and text.strip():
-                self.currentCodecCustom = text.strip()
-        # Обновляем команду после выбора
+            self._showCustomCodecMenu()
+            return
         self.updateCommandFromPresetEditor()
 
     def onContainerButtonClicked(self, button):
@@ -1541,17 +1725,10 @@ class MainWindow(QMainWindow):
         self.updateCommandFromPresetEditor()
 
     def onResolutionButtonClicked(self, button):
-        """Обработчик выбора разрешения в редакторе пресетов."""
+        """Обработчик выбора разрешения в редакторе пресетов. Custom — выпадающее меню."""
         if hasattr(self.ui, 'resolutionCustomButton') and button is self.ui.resolutionCustomButton:
-            text, ok = QInputDialog.getText(
-                self,
-                "Пользовательское разрешение",
-                "Введите разрешение в формате width:height (например, 1920:1080):",
-                text=self.currentResolutionCustom or "1920:1080"
-            )
-            if ok and text.strip():
-                self.currentResolutionCustom = text.strip()
-        # Обновляем команду после выбора
+            self._showCustomResolutionMenu()
+            return
         self.updateCommandFromPresetEditor()
 
     def updateCommandFromPresetEditor(self):
@@ -1626,18 +1803,19 @@ class MainWindow(QMainWindow):
                 elif not item.output_file:
                     self._generateOutputFileForItem(item)
 
-                # Маркируем пресет для файла
-                if (codec in default_like and
-                    container in default_like and
-                    resolution in default_like):
+                # Маркируем пресет для файла (учитываем и аудио-кодек)
+                default_audio = ("current", "", "default")
+                if (codec in default_like and container in default_like and resolution in default_like
+                        and audio_codec in default_audio):
                     item.preset_name = "default"
                 else:
                     item.preset_name = "custom"
 
-        # При массовом изменении не трогаем текст команды (для нескольких файлов она не отображается),
-        # достаточно того, что параметры в QueueItem изменены.
+        # Обновляем отображение команды для выделенного файла (если один)
         self.commandManuallyEdited = False
         self.updateQueueTable()
+        if len(indices) == 1 and hasattr(self.ui, "commandDisplay"):
+            self.updateCommandFromGUI()
 
     def getSelectedQueueItem(self):
         """Возвращает выделенный элемент очереди или None"""
@@ -1712,9 +1890,7 @@ class MainWindow(QMainWindow):
         # Параметры разрешения и масштаба
         res = item.resolution or "current"
         scale = ""
-        if getattr(item, "vf_lanczos", False):
-            scale = "scale=1280:720:flags=lanczos"
-        elif res == "480p":
+        if res == "480p":
             scale = "scale=854:480"
         elif res == "720p":
             scale = "scale=1280:720"
@@ -1729,21 +1905,28 @@ class MainWindow(QMainWindow):
             if isinstance(custom, str) and (":" in custom or "x" in custom):
                 custom = custom.replace("x", ":")
                 scale = "scale=" + custom
+        # Добавляем flags=lanczos к текущему масштабированию
+        if getattr(item, "vf_lanczos", False):
+            if scale:
+                if "flags=" not in scale:
+                    scale = scale + ":flags=lanczos"
+            else:
+                scale = "scale=iw:ih:flags=lanczos"
 
         vf_args = []
         if scale:
             vf_args = ["-vf", scale]
 
-        # Доп. аргументы видео (только если не copy)
+        # Доп. аргументы видео (CRF, битрейт, FPS и т.д. — для любого кодека кроме copy)
         video_extra = []
-        if codec not in ("default", "current", "", "copy"):
+        if codec != "copy":
             if getattr(item, "crf", 0) > 0:
                 video_extra += ["-crf", str(item.crf)]
             if getattr(item, "bitrate", 0) > 0:
                 video_extra += ["-b:v", str(item.bitrate) + "k"]
             if getattr(item, "fps", 0) > 0:
                 video_extra += ["-r", str(item.fps)]
-            if codec == "libx264" and getattr(item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "current", "default", "") and getattr(item, "preset_speed", ""):
                 video_extra += ["-preset", item.preset_speed]
             pl = getattr(item, "profile_level", "") or ""
             if pl:
@@ -1774,6 +1957,7 @@ class MainWindow(QMainWindow):
         tag_hvc1 = getattr(item, "tag_hvc1", False)
 
         segments = self._getTrimSegments(item)
+        extra_args = self._getExtraArgsList(getattr(item, "extra_args", ""))
         cmd_parts = ["ffmpeg"]
         if len(segments) == 1:
             start_sec, end_sec = segments[0]
@@ -1784,6 +1968,8 @@ class MainWindow(QMainWindow):
             cmd_parts += audio_args
             if tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
+            if extra_args:
+                cmd_parts += extra_args
         elif len(segments) > 1:
             filter_complex, _ = self._buildTrimConcatFilter(segments, scale)
             codec_display = codec if codec not in ("default", "current", "") else "libx264"
@@ -1792,6 +1978,8 @@ class MainWindow(QMainWindow):
             cmd_parts += audio_args
             if tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
+            if extra_args:
+                cmd_parts += extra_args
         else:
             cmd_parts += ["-i", self._quotePath(input_file_normalized)]
             cmd_parts += vf_args
@@ -1800,6 +1988,8 @@ class MainWindow(QMainWindow):
             cmd_parts += audio_args
             if tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
+            if extra_args:
+                cmd_parts += extra_args
         cmd_parts.append(self._quotePath(final_output))
         return " ".join(cmd_parts)
     
@@ -1903,9 +2093,7 @@ class MainWindow(QMainWindow):
         # Параметры разрешения и масштаба
         res = queue_item.resolution or "current"
         scale = ""
-        if getattr(queue_item, "vf_lanczos", False):
-            scale = "scale=1280:720:flags=lanczos"
-        elif res == "480p":
+        if res == "480p":
             scale = "scale=854:480"
         elif res == "720p":
             scale = "scale=1280:720"
@@ -1920,21 +2108,28 @@ class MainWindow(QMainWindow):
             if isinstance(custom, str) and (":" in custom or "x" in custom):
                 custom = custom.replace("x", ":")
                 scale = "scale=" + custom
+        # Добавляем flags=lanczos к текущему масштабированию
+        if getattr(queue_item, "vf_lanczos", False):
+            if scale:
+                if "flags=" not in scale:
+                    scale = scale + ":flags=lanczos"
+            else:
+                scale = "scale=iw:ih:flags=lanczos"
 
         vf_args = []
         if scale:
             vf_args = ["-vf", scale]
 
-        # Доп. аргументы видео (только если не copy)
+        # Доп. аргументы видео (CRF, битрейт, FPS и т.д. — для любого кодека кроме copy)
         video_extra = []
-        if codec not in ("default", "current", "", "copy"):
+        if codec != "copy":
             if getattr(queue_item, "crf", 0) > 0:
                 video_extra += ["-crf", str(queue_item.crf)]
             if getattr(queue_item, "bitrate", 0) > 0:
                 video_extra += ["-b:v", str(queue_item.bitrate) + "k"]
             if getattr(queue_item, "fps", 0) > 0:
                 video_extra += ["-r", str(queue_item.fps)]
-            if codec == "libx264" and getattr(queue_item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "current", "default", "") and getattr(queue_item, "preset_speed", ""):
                 video_extra += ["-preset", queue_item.preset_speed]
             pl = getattr(queue_item, "profile_level", "") or ""
             if pl:
@@ -1962,6 +2157,7 @@ class MainWindow(QMainWindow):
         if getattr(queue_item, "sample_rate", 0) > 0:
             audio_args += ["-ar", str(queue_item.sample_rate)]
         tag_hvc1 = getattr(queue_item, "tag_hvc1", False)
+        extra_args = self._getExtraArgsList(getattr(queue_item, "extra_args", ""))
 
         # Сегменты обрезки/склейки
         segments = self._getTrimSegments(queue_item)
@@ -1975,6 +2171,8 @@ class MainWindow(QMainWindow):
             args += audio_args
             if tag_hvc1:
                 args += ["-tag:v", "hvc1"]
+            if extra_args:
+                args += extra_args
             args.append(final_output)
         elif len(segments) > 1:
             filter_complex, map_v = self._buildTrimConcatFilter(segments, scale)
@@ -1984,6 +2182,8 @@ class MainWindow(QMainWindow):
             args += audio_args
             if tag_hvc1:
                 args += ["-tag:v", "hvc1"]
+            if extra_args:
+                args += extra_args
             args.append(final_output)
         else:
             args = ["-i", input_file_normalized]
@@ -1993,6 +2193,8 @@ class MainWindow(QMainWindow):
             args += audio_args
             if tag_hvc1:
                 args += ["-tag:v", "hvc1"]
+            if extra_args:
+                args += extra_args
             args.append(final_output)
 
         return args
@@ -2068,6 +2270,8 @@ class MainWindow(QMainWindow):
             try:
                 cmd_from_item = item.command.strip()
                 args = self._parseCommand(cmd_from_item)
+                # Подставляем пути текущего файла (входной и выходной) в сохранённую/отредактированную команду
+                args = self._substitutePathsInArgs(args, item)
             except Exception as e:
                 QMessageBox.warning(
                     self,
@@ -2126,6 +2330,57 @@ class MainWindow(QMainWindow):
         if parts and parts[0].lower() == "ffmpeg":
             parts = parts[1:]
         return parts
+
+    def _getExtraArgsList(self, extra_args_str):
+        """Парсит строку доп. аргументов в список для FFmpeg."""
+        if not extra_args_str:
+            return []
+        try:
+            return shlex.split(extra_args_str)
+        except Exception:
+            return extra_args_str.split()
+
+    def _stripInputOutputArgs(self, args):
+        """Удаляет из списка аргументов первый -i <input> и последний <output>."""
+        if not args:
+            return []
+        out = list(args)
+        for i in range(len(out) - 1):
+            if out[i] == "-i":
+                del out[i:i + 2]
+                break
+        if out:
+            out = out[:-1]
+        return out
+
+    def _extractExtraArgsFromCommands(self, base_cmd, user_cmd):
+        """Сравнивает базовую команду (из UI) с командой пользователя и возвращает список доп. аргументов."""
+        base_args = self._stripInputOutputArgs(self._parseCommand(base_cmd))
+        user_args = self._stripInputOutputArgs(self._parseCommand(user_cmd))
+        extra = list(user_args)
+        for arg in base_args:
+            if arg in extra:
+                extra.remove(arg)
+        return extra
+
+    def _substitutePathsInArgs(self, args, queue_item):
+        """Подставляет пути текущего файла (входной и выходной) в список аргументов. Последний аргумент — выходной файл, после первого -i — входной."""
+        if not args or not queue_item:
+            return args
+        args = list(args)
+        input_path = os.path.normpath(queue_item.file_path)
+        if not queue_item.output_file:
+            self._generateOutputFileForItem(queue_item)
+        output_path = os.path.normpath(queue_item.output_file) if queue_item.output_file else ""
+        # Замена пути после первого -i
+        for i in range(len(args) - 1):
+            if args[i] == "-i":
+                args[i + 1] = input_path
+                break
+        # Замена последнего аргумента (выходной файл)
+        if output_path and len(args) >= 1:
+            args[-1] = output_path
+        return args
 
     def readProcessOutput(self):
         """Читает и форматирует вывод FFmpeg с правильной цветовой схемой"""
@@ -2778,8 +3033,50 @@ class MainWindow(QMainWindow):
 
     # ===== Новые методы создания/сохранения пресетов через редактор =====
 
+    def _getPresetExtraFromUI(self):
+        """Собирает из редактора пресетов все доп. параметры (CRF, битрейт, FPS и т.д.) для сохранения в пресет."""
+        def spin_val(attr, default=0):
+            w = getattr(self, attr, None)
+            return w.value() if w is not None else default
+        def text_val(attr, default=""):
+            w = getattr(self, attr, None)
+            return w.text().strip() if w is not None else default
+        def combo_text(attr, default=""):
+            w = getattr(self, attr, None)
+            return w.currentText() if w is not None else default
+        def check_val(attr, default=False):
+            w = getattr(self, attr, None)
+            return w.isChecked() if w is not None else default
+        return {
+            "audio_codec": self._getAudioCodecFromButtons(),
+            "crf": spin_val("_crfSpin"),
+            "bitrate": spin_val("_bitrateSpin"),
+            "fps": spin_val("_fpsSpin"),
+            "audio_bitrate": spin_val("_audioBitrateSpin"),
+            "sample_rate": spin_val("_sampleRateSpin"),
+            "preset_speed": combo_text("_presetCombo", "medium"),
+            "profile_level": text_val("_profileLevelEdit"),
+            "pixel_format": text_val("_pixelFormatEdit"),
+            "tune": text_val("_tuneEdit"),
+            "threads": spin_val("_threadsSpin"),
+            "keyint": spin_val("_keyintSpin"),
+            "tag_hvc1": check_val("_checkTagHvc1"),
+            "vf_lanczos": check_val("_checkVfLanczos"),
+        }
+
+    def _generateCommandWithoutExtra(self):
+        """Генерирует команду из текущих настроек без extra_args пресета."""
+        item = self.getSelectedQueueItem()
+        if not item:
+            return ""
+        saved_extra = getattr(item, "extra_args", "")
+        item.extra_args = ""
+        cmd = self.generateFFmpegCommand()
+        item.extra_args = saved_extra
+        return cmd
+
     def createPreset(self):
-        """Создаёт новый пресет на основе текущих настроек редактора пресетов."""
+        """Создаёт новый пресет на основе текущих настроек редактора пресетов (включая CRF, битрейт, FPS и т.д.)."""
         codec = self._getCodecFromButtons()
         container = self._getContainerFromButtons()
         resolution = self._getResolutionFromButtons()
@@ -2793,19 +3090,19 @@ class MainWindow(QMainWindow):
         if not ok:
             return
 
-        self.presetManager.savePreset(name, codec, resolution, container, desc.strip())
+        extra = self._getPresetExtraFromUI()
+        self.presetManager.savePreset(name, codec, resolution, container, desc.strip(), **extra)
         self.currentPresetName = name
         self.refreshPresetsTable()
 
     def saveCurrentPreset(self):
-        """Сохраняет изменения в текущий выбранный пресет, либо создаёт новый, если пресет ещё не выбран."""
+        """Сохраняет изменения в текущий выбранный пресет (включая все настройки: CRF, битрейт, FPS и т.д.)."""
         codec = self._getCodecFromButtons()
         container = self._getContainerFromButtons()
         resolution = self._getResolutionFromButtons()
 
         name = self.currentPresetName
         if not name or name == "custom":
-            # Для custom или отсутствующего пресета запрашиваем имя
             name, ok = QInputDialog.getText(self, "Сохранить пресет", "Имя пресета:")
             if not ok or not name.strip():
                 return
@@ -2816,15 +3113,263 @@ class MainWindow(QMainWindow):
         if existing and existing.get("description"):
             desc = existing["description"]
 
-        self.presetManager.savePreset(name, codec, resolution, container, desc)
+        extra = self._getPresetExtraFromUI()
+        self.presetManager.savePreset(name, codec, resolution, container, desc, **extra)
         self.currentPresetName = name
         self.refreshPresetsTable()
+
+    def savePresetWithCustomParams(self):
+        """Сохраняет пресет и доп. параметры, которые пользователь вручную добавил в команду FFmpeg."""
+        item = self.getSelectedQueueItem()
+        if not item:
+            QMessageBox.information(self, "Сохранить пресет", "Сначала выберите файл в очереди.")
+            return
+
+        if not hasattr(self.ui, "commandDisplay"):
+            return
+        user_cmd = self.ui.commandDisplay.toPlainText().strip()
+        if not user_cmd or user_cmd.lower() == "ffmpeg":
+            QMessageBox.information(self, "Сохранить пресет", "Команда пуста. Сначала задайте параметры или отредактируйте команду.")
+            return
+
+        base_cmd = self._generateCommandWithoutExtra()
+        extra_args_list = self._extractExtraArgsFromCommands(base_cmd, user_cmd)
+        extra_args = " ".join(extra_args_list).strip()
+
+        codec = self._getCodecFromButtons()
+        container = self._getContainerFromButtons()
+        resolution = self._getResolutionFromButtons()
+
+        name = self.currentPresetName
+        if not name or name == "custom":
+            name, ok = QInputDialog.getText(self, "Сохранить пресет", "Имя пресета:")
+            if not ok or not name.strip():
+                return
+            name = name.strip()
+
+        desc = ""
+        existing = self.presetManager.loadPreset(name)
+        if existing and existing.get("description"):
+            desc = existing["description"]
+
+        extra = self._getPresetExtraFromUI()
+        extra["extra_args"] = extra_args
+        self.presetManager.savePreset(name, codec, resolution, container, desc, **extra)
+        self.currentPresetName = name
+        self.refreshPresetsTable()
+        QMessageBox.information(self, "Сохранено", "Пресет сохранён с дополнительными параметрами.")
 
     def copyCommand(self):
         clipboard = QGuiApplication.clipboard()
         clipboard.setText(self.ui.commandDisplay.toPlainText())
         QMessageBox.information(self, "Скопировано", "Команда скопирована в буфер обмена!")
-    
+
+    def _chooseDataType(self, title):
+        """Выбор типа данных для импорта/экспорта."""
+        items = ["Пресеты", "Команды FFmpeg", "Кастомные параметры"]
+        choice, ok = QInputDialog.getItem(self, title, "Что импортировать/экспортировать:", items, 0, False)
+        if not ok or not choice:
+            return None
+        if choice == "Пресеты":
+            return "presets"
+        if choice == "Команды FFmpeg":
+            return "commands"
+        return "custom"
+
+    def exportData(self):
+        """Экспорт: пользователь выбирает тип данных и место сохранения файла."""
+        dtype = self._chooseDataType("Экспорт")
+        if not dtype:
+            return
+        if dtype == "presets":
+            source = self.presetManager.presets_file
+            filter_str = "XML файлы (*.xml)"
+        elif dtype == "commands":
+            source = self._savedCommandsPath
+            filter_str = "JSON файлы (*.json)"
+        else:
+            source = self._customOptionsPath
+            filter_str = "JSON файлы (*.json)"
+
+        if not os.path.exists(source):
+            QMessageBox.information(self, "Экспорт", "Файл не найден. Сначала создайте данные в программе.")
+            return
+
+        default_name = os.path.basename(source)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Экспорт", default_name, filter_str)
+        if not file_path:
+            return
+        try:
+            shutil.copyfile(source, file_path)
+            QMessageBox.information(self, "Экспорт", f"Файл сохранён:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Экспорт", f"Не удалось сохранить файл:\n{str(e)}")
+
+    def importData(self):
+        """Импорт: пользователь выбирает тип данных, затем файл для импорта."""
+        dtype = self._chooseDataType("Импорт")
+        if not dtype:
+            return
+        if dtype == "presets":
+            file_path, _ = QFileDialog.getOpenFileName(self, "Импорт пресетов", "", "XML файлы (*.xml)")
+            if not file_path:
+                return
+            ok = self.presetManager.mergePresetsFromFile(file_path)
+            if ok:
+                QMessageBox.information(self, "Импорт", "Пресеты импортированы (слияние выполнено).")
+                self.refreshPresetsTable()
+            else:
+                QMessageBox.critical(self, "Импорт", "Не удалось импортировать пресеты.")
+            return
+        if dtype == "commands":
+            file_path, _ = QFileDialog.getOpenFileName(self, "Импорт команд", "", "JSON файлы (*.json)")
+            if not file_path:
+                return
+            ok = self._mergeSavedCommandsFromFile(file_path)
+            if ok:
+                QMessageBox.information(self, "Импорт", "Команды импортированы.")
+            else:
+                QMessageBox.critical(self, "Импорт", "Не удалось импортировать команды.")
+            return
+        # custom params
+        file_path, _ = QFileDialog.getOpenFileName(self, "Импорт пользовательских параметров", "", "JSON файлы (*.json)")
+        if not file_path:
+            return
+        ok = self._mergeCustomOptionsFromFile(file_path)
+        if ok:
+            QMessageBox.information(self, "Импорт", "Параметры импортированы.")
+        else:
+            QMessageBox.critical(self, "Импорт", "Не удалось импортировать параметры.")
+
+    def _mergeSavedCommandsFromFile(self, file_path):
+        """Сливает команды FFmpeg из файла JSON, не перезаписывая существующие имена."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            incoming = data.get("commands", [])
+            if not isinstance(incoming, list):
+                return False
+            existing = self._loadSavedCommands()
+            names = {c.get("name") for c in existing}
+            for cmd in incoming:
+                if not isinstance(cmd, dict):
+                    continue
+                name = cmd.get("name")
+                command = cmd.get("command")
+                if not name or command is None:
+                    continue
+                if name in names:
+                    continue
+                existing.append({"name": name, "command": command})
+                names.add(name)
+            self._saveSavedCommands(existing)
+            return True
+        except Exception:
+            return False
+
+    def _mergeCustomOptionsFromFile(self, file_path):
+        """Сливает кастомные параметры (контейнеры, кодеки, разрешения, аудио-кодеки)."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            containers = data.get("containers", [])
+            codecs = data.get("codecs", [])
+            resolutions = data.get("resolutions", [])
+            audio_codecs = data.get("audio_codecs", [])
+            if not isinstance(containers, list): containers = []
+            if not isinstance(codecs, list): codecs = []
+            if not isinstance(resolutions, list): resolutions = []
+            if not isinstance(audio_codecs, list): audio_codecs = []
+            self.customContainers = list(dict.fromkeys(self.customContainers + containers))
+            self.customCodecs = list(dict.fromkeys(self.customCodecs + codecs))
+            self.customResolutions = list(dict.fromkeys(self.customResolutions + resolutions))
+            self.customAudioCodecs = list(dict.fromkeys(self.customAudioCodecs + audio_codecs))
+            self._saveCustomOptions()
+            return True
+        except Exception:
+            return False
+
+    def saveCurrentCommand(self):
+        """Сохраняет текущую команду из поля ввода под заданным именем (диалог)."""
+        cmd = self.ui.commandDisplay.toPlainText().strip() if hasattr(self.ui, "commandDisplay") else ""
+        if not cmd or cmd.lower() == "ffmpeg":
+            QMessageBox.information(self, "Сохранение команды", "Введите команду в поле выше или сгенерируйте её, выбрав файл и пресет.")
+            return
+        name, ok = QInputDialog.getText(
+            self,
+            "Сохранить команду",
+            "Введите имя для сохранённой команды:",
+            text=""
+        )
+        if not ok or not name.strip():
+            return
+        name = name.strip()
+        commands = self._loadSavedCommands()
+        # Заменяем существующую запись с таким именем
+        commands = [c for c in commands if c.get("name") != name]
+        commands.append({"name": name, "command": cmd})
+        self._saveSavedCommands(commands)
+        QMessageBox.information(self, "Сохранено", f"Команда «{name}» сохранена.")
+
+    def loadSavedCommand(self):
+        """Загружает выбранную сохранённую команду и применяет её к выделенному файлу в очереди (пресет → custom)."""
+        item = self.getSelectedQueueItem()
+        if not item:
+            QMessageBox.information(self, "Загрузить команду", "Сначала выберите файл в очереди.")
+            return
+        commands = self._loadSavedCommands()
+        if not commands:
+            QMessageBox.information(self, "Загрузить команду", "Нет сохранённых команд. Сохраните команду кнопкой «Сохранить команду».")
+            return
+        names = [c.get("name", "") for c in commands]
+        name, ok = QInputDialog.getItem(
+            self,
+            "Загрузить команду",
+            "Выберите сохранённую команду:",
+            names,
+            0,
+            False
+        )
+        if not ok or not name:
+            return
+        entry = next((c for c in commands if c.get("name") == name), None)
+        if not entry:
+            return
+        cmd = entry.get("command", "").strip()
+        if not cmd:
+            return
+        item.preset_name = "custom"
+        item.command = cmd
+        item.command_manually_edited = True
+        item.last_generated_command = getattr(item, "last_generated_command", "") or ""
+        self.commandManuallyEdited = True
+        if hasattr(self.ui, "commandDisplay"):
+            self.ui.commandDisplay.setPlainText(cmd)
+            self.ui.commandDisplay.setReadOnly(False)
+        self.updateQueueTable()
+        QMessageBox.information(self, "Загружено", f"Команда «{name}» применена к выбранному файлу. При кодировании будут подставлены пути этого файла.")
+
+    def deleteSavedCommand(self):
+        """Удаляет выбранную сохранённую команду (диалог выбора)."""
+        commands = self._loadSavedCommands()
+        if not commands:
+            QMessageBox.information(self, "Удалить команду", "Нет сохранённых команд.")
+            return
+        names = [c.get("name", "") for c in commands]
+        name, ok = QInputDialog.getItem(
+            self,
+            "Удалить команду",
+            "Выберите команду для удаления:",
+            names,
+            0,
+            False
+        )
+        if not ok or not name:
+            return
+        commands = [c for c in commands if c.get("name") != name]
+        self._saveSavedCommands(commands)
+        QMessageBox.information(self, "Удалено", f"Команда «{name}» удалена из списка сохранённых.")
+
     def exportSelectedPreset(self):
         """Экспорт выбранного в таблице пресета в XML файл."""
         if not hasattr(self.ui, 'presetsTableWidget'):
