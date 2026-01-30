@@ -2,11 +2,14 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1406</width>
+    <width>1313</width>
     <height>958</height>
    </rect>
   </property>
@@ -40,7 +43,7 @@
         <bool>false</bool>
        </property>
        <property name="text">
-        <string>⏸ Пауза</string>
+        <string>Пауза</string>
        </property>
       </widget>
      </item>
@@ -56,10 +59,10 @@
    <widget class="QWidget" name="videoPreviewContainer" native="true">
     <property name="geometry">
      <rect>
-      <x>260</x>
-      <y>20</y>
+      <x>210</x>
+      <y>10</y>
       <width>401</width>
-      <height>281</height>
+      <height>291</height>
      </rect>
     </property>
     <widget class="QWidget" name="verticalLayoutWidget_2">
@@ -68,22 +71,26 @@
        <x>0</x>
        <y>0</y>
        <width>401</width>
-       <height>281</height>
+       <height>291</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout" stretch="6,2,1">
       <item>
-       <widget class="QWidget" name="videoPreviewWidget" native="true">
-        <property name="maximumSize">
-         <size>
-          <width>400</width>
-          <height>300</height>
-         </size>
-        </property>
-        <property name="styleSheet">
-         <string notr="true">border: 1px solid #cccccc; background-color: #000000;</string>
-        </property>
-       </widget>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QWidget" name="videoPreviewWidget" native="true">
+          <property name="maximumSize">
+           <size>
+            <width>384</width>
+            <height>216</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">border: 1px solid #cccccc; background-color: #000000;</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item>
        <widget class="QSlider" name="videoTimelineSlider">
@@ -105,8 +112,14 @@
         </property>
         <item>
          <widget class="QPushButton" name="videoPlayButton">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
           <property name="text">
-           <string>▶ Play</string>
+           <string>Play</string>
           </property>
          </widget>
         </item>
@@ -150,13 +163,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="videoMuteButton">
-          <property name="text">
-           <string>​🔊</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QPushButton" name="AddKeepArea">
           <property name="maximumSize">
            <size>
@@ -195,6 +201,19 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QPushButton" name="videoMuteButton">
+          <property name="maximumSize">
+           <size>
+            <width>40</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>​🔊</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
      </layout>
@@ -205,7 +224,7 @@
      <rect>
       <x>20</x>
       <y>300</y>
-      <width>881</width>
+      <width>791</width>
       <height>281</height>
      </rect>
     </property>
@@ -214,7 +233,7 @@
       <rect>
        <x>0</x>
        <y>20</y>
-       <width>871</width>
+       <width>771</width>
        <height>261</height>
       </rect>
      </property>
@@ -319,10 +338,10 @@
    <widget class="QWidget" name="presetEditorContainer" native="true">
     <property name="geometry">
      <rect>
-      <x>910</x>
-      <y>20</y>
+      <x>820</x>
+      <y>10</y>
       <width>471</width>
-      <height>281</height>
+      <height>291</height>
      </rect>
     </property>
     <widget class="QWidget" name="verticalLayoutWidget_3">
@@ -331,10 +350,10 @@
        <x>0</x>
        <y>0</y>
        <width>471</width>
-       <height>281</height>
+       <height>291</height>
       </rect>
      </property>
-     <layout class="QVBoxLayout" name="presetEditorLayout" stretch="1,0,20,1">
+     <layout class="QVBoxLayout" name="presetEditorLayout" stretch="0,0,20,2">
       <item>
        <widget class="QLabel" name="label">
         <property name="text">
@@ -415,6 +434,9 @@
       </item>
       <item>
        <layout class="QHBoxLayout" name="presetEditorBottomButtonsLayout">
+        <property name="bottomMargin">
+         <number>10</number>
+        </property>
         <item>
          <widget class="QPushButton" name="createPresetButton">
           <property name="text">
@@ -437,18 +459,18 @@
    <widget class="QWidget" name="presetSettingsContainer" native="true">
     <property name="geometry">
      <rect>
-      <x>910</x>
-      <y>300</y>
+      <x>820</x>
+      <y>320</y>
       <width>471</width>
-      <height>361</height>
+      <height>341</height>
      </rect>
     </property>
     <widget class="QWidget" name="verticalLayoutWidget_4">
      <property name="geometry">
       <rect>
        <x>0</x>
-       <y>20</y>
-       <width>480</width>
+       <y>0</y>
+       <width>471</width>
        <height>141</height>
       </rect>
      </property>
@@ -589,7 +611,7 @@
      <property name="geometry">
       <rect>
        <x>0</x>
-       <y>170</y>
+       <y>140</y>
        <width>471</width>
        <height>191</height>
       </rect>
@@ -625,9 +647,9 @@
      <widget class="QPushButton" name="copyCmdButton">
       <property name="geometry">
        <rect>
-        <x>400</x>
+        <x>380</x>
         <y>10</y>
-        <width>71</width>
+        <width>91</width>
         <height>21</height>
        </rect>
       </property>
@@ -655,7 +677,7 @@
      <rect>
       <x>20</x>
       <y>650</y>
-      <width>871</width>
+      <width>791</width>
       <height>261</height>
      </rect>
     </property>
@@ -664,7 +686,7 @@
       <rect>
        <x>0</x>
        <y>30</y>
-       <width>871</width>
+       <width>771</width>
        <height>221</height>
       </rect>
      </property>
@@ -691,7 +713,7 @@
      <rect>
       <x>460</x>
       <y>600</y>
-      <width>431</width>
+      <width>331</width>
       <height>21</height>
      </rect>
     </property>
@@ -708,7 +730,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1406</width>
+     <width>1313</width>
      <height>22</height>
     </rect>
    </property>

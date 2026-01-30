@@ -1,5 +1,6 @@
 import sys
 from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QPalette, QColor
 from mainwindow import MainWindow
 
 # Тёмно-серая тема: фон #2b2b2b, панели #363636, акцент #4a9eff, текст #e0e0e0
@@ -27,6 +28,9 @@ DARK_STYLESHEET = """
         color: #6e6e6e;
         border-color: #404040;
     }
+    QAbstractScrollArea::viewport {
+        background-color: #363636;
+    }
     QTableWidget {
         background-color: #363636;
         color: #e0e0e0;
@@ -39,12 +43,12 @@ DARK_STYLESHEET = """
         color: #e0e0e0;
         padding: 4px;
     }
+    QTableWidget::item:alternate {
+        background-color: #3a3a3a;
+    }
     QTableWidget::item:selected {
         background-color: #4a9eff;
         color: #ffffff;
-    }
-    QTableWidget::item:alternate {
-        background-color: #3a3a3a;
     }
     QHeaderView::section {
         background-color: #404040;
@@ -114,37 +118,6 @@ DARK_STYLESHEET = """
         background-color: #363636;
         color: #9e9e9e;
         border-top: 1px solid #505050;
-    }
-    QScrollBar:vertical {
-        background: #363636;
-        width: 12px;
-        border-radius: 6px;
-        margin: 0;
-    }
-    QScrollBar::handle:vertical {
-        background: #505050;
-        border-radius: 6px;
-        min-height: 24px;
-    }
-    QScrollBar::handle:vertical:hover {
-        background: #606060;
-    }
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-        height: 0;
-    }
-    QScrollBar:horizontal {
-        background: #363636;
-        height: 12px;
-        border-radius: 6px;
-        margin: 0;
-    }
-    QScrollBar::handle:horizontal {
-        background: #505050;
-        border-radius: 6px;
-        min-width: 24px;
-    }
-    QScrollBar::handle:horizontal:hover {
-        background: #606060;
     }
     QComboBox {
         background-color: #3c3c3c;
@@ -224,6 +197,17 @@ DARK_STYLESHEET = """
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor("#2b2b2b"))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
+    palette.setColor(QPalette.ColorRole.Base, QColor("#3c3c3c"))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#363636"))
+    palette.setColor(QPalette.ColorRole.Button, QColor("#404040"))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#e0e0e0"))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#4a9eff"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    app.setPalette(palette)
     app.setStyleSheet(DARK_STYLESHEET)
     window = MainWindow()
     window.show()

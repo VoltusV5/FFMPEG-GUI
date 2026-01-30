@@ -5,9 +5,10 @@ import shlex
 import re
 from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
-                               QHeaderView, QAbstractItemView, QButtonGroup, QWidget)
-from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF
-from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush
+                               QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
+                               QStyleOptionSlider, QStyle)
+from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
+from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
@@ -40,9 +41,12 @@ class TrimSegmentBar(QWidget):
         w, h = self.width(), self.height()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        radius = min(4, h // 2)
+        painter.setPen(Qt.PenStyle.NoPen)
         # Фон — тёмно-серая полоска под тему
         painter.fillRect(0, 0, w, h, QColor(0x40, 0x40, 0x40))
-        # Добавленные области склейки — приглушённый зелёный
+        # Добавленные области склейки — приглушённый зелёный, скруглённые края
         for start, end in self.keep_segments:
             if end <= start:
                 continue
@@ -51,15 +55,21 @@ class TrimSegmentBar(QWidget):
             x1 = max(0, min(x1, w))
             x2 = max(0, min(x2, w))
             if x2 > x1:
-                painter.fillRect(x1, 0, x2 - x1, h, QColor(56, 142, 60))  # #388e3c
-        # Текущий промежуток in–out — акцентный синий
+                seg_w = x2 - x1
+                r = min(radius, seg_w // 2, h // 2)
+                painter.setBrush(QColor(56, 142, 60))
+                painter.drawRoundedRect(QRectF(x1, 0, seg_w, h), r, r)
+        # Текущий промежуток in–out — акцентный синий, скруглённые края
         if self.trim_start_sec is not None and self.trim_end_sec is not None and self.trim_end_sec > self.trim_start_sec:
             x1 = int(w * self.trim_start_sec / self.duration_sec)
             x2 = int(w * self.trim_end_sec / self.duration_sec)
             x1 = max(0, min(x1, w))
             x2 = max(0, min(x2, w))
             if x2 > x1:
-                painter.fillRect(x1, 0, x2 - x1, h, QColor(0x4a, 0x9e, 0xff))
+                seg_w = x2 - x1
+                r = min(radius, seg_w // 2, h // 2)
+                painter.setBrush(QColor(0x4a, 0x9e, 0xff))
+                painter.drawRoundedRect(QRectF(x1, 0, seg_w, h), r, r)
         painter.end()
 
 
@@ -81,6 +91,35 @@ class MainWindow(QMainWindow):
             self.ui.commandDisplay.setStyleSheet(
                 "background-color: #3c3c3c; color: #e0e0e0; font-family: Consolas, monospace; border: 1px solid #505050;"
             )
+        if hasattr(self.ui, 'SetInPoint'):
+            self.ui.SetInPoint.setText("[")
+        if hasattr(self.ui, 'SetOutPoint'):
+            self.ui.SetOutPoint.setText("]")
+        if hasattr(self.ui, 'PreviousFrame'):
+            self.ui.PreviousFrame.setText("\u2190")   # ← предыдущий кадр
+        if hasattr(self.ui, 'NextFrame'):
+            self.ui.NextFrame.setText("\u2192")      # → следующий кадр
+        # Размер кнопок под видеоплеером: по умолчанию — как в теме (main.py QPushButton).
+        # Чтобы снова сделать их меньше, раскомментируйте блок ниже (или меняйте значения здесь):
+        # if hasattr(self.ui, 'videoControlsLayout'):
+        #     for i in range(self.ui.videoControlsLayout.count()):
+        #         w = self.ui.videoControlsLayout.itemAt(i).widget()
+        #         if w is not None and isinstance(w, QPushButton):
+        #             w.setMaximumHeight(22)
+        #             w.setStyleSheet("padding: 1px 4px; min-height: 0;")
+        # Альтернатива: в Qt Designer (mainwindow.ui) — виджет videoPreviewContainer,
+        # или кнопки в verticalLayoutWidget_2 (videoPlayButton, PreviousFrame и т.д.) — свойство maximumSize.
+        # Высота блока «Настройка пресетов» (таблица пресетов). Менять здесь или в mainwindow.ui:
+        if hasattr(self.ui, 'presetEditorContainer'):
+            self.ui.presetEditorContainer.setFixedHeight(311)   # было 231, +70 px
+        if hasattr(self.ui, 'verticalLayoutWidget_3'):
+            self.ui.verticalLayoutWidget_3.setFixedHeight(298)  # было 221, +70 px
+        if hasattr(self.ui, 'createPresetButton'):
+            self.ui.createPresetButton.setMaximumHeight(28)
+            self.ui.createPresetButton.setStyleSheet("padding: 4px 10px;")
+        if hasattr(self.ui, 'savePresetChangesButton'):
+            self.ui.savePresetChangesButton.setMaximumHeight(28)
+            self.ui.savePresetChangesButton.setStyleSheet("padding: 4px 10px;")
 
         self.ffmpegProcess = QProcess(self)
         self.presetManager = PresetManager()
@@ -131,6 +170,12 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'presetEditorContainer'):
             self.ui.presetEditorContainer.hide()
 
+        # Подложка таблиц и номера строк — серый фон (как основная подложка)
+        for tbl in [getattr(self.ui, "queueTableWidget", None), getattr(self.ui, "presetsTableWidget", None)]:
+            if tbl is not None:
+                tbl.verticalHeader().setStyleSheet(
+                    "background-color: #363636; color: #e0e0e0; border: none; border-right: 1px solid #505050;"
+                )
         # Подключение сигналов
         # Кнопки очереди
         if hasattr(self.ui, 'addFilesButton'):
@@ -205,7 +250,7 @@ class MainWindow(QMainWindow):
 
         # Состояние показа лога
         self.isLogVisible = False
-        self.normalSize = (900, 680)  # Обычный размер
+        self.normalSize = (800, 680)  # Обычный размер
         self.expandedSize = (900, 950)  # Размер с видимым логом
 
         # Начально скрываем лог
@@ -220,7 +265,7 @@ class MainWindow(QMainWindow):
         table = self.ui.queueTableWidget
         table.setColumnCount(6)
         table.setHorizontalHeaderLabels([
-            "Входной файл", "Выходной файл", "Пресет", "Статус", "Прогресс", "Открыть папку"
+            "Входной файл", "Выходной файл", "Пресет", "Статус", "Прогресс", "Открыть"
         ])
         
         # Разрешаем множественное выделение строк (для массового применения пресетов)
@@ -230,7 +275,7 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QHeaderView.Fixed)  # Входной файл - фиксированная ширина
-        table.setColumnWidth(0, 250)  # Уменьшено для оптимизации места
+        table.setColumnWidth(0, 200)  # Уменьшено для оптимизации места
         header.setSectionResizeMode(1, QHeaderView.Fixed)  # Выходной файл
         table.setColumnWidth(1, 200)  # Оптимизированная ширина
         header.setSectionResizeMode(2, QHeaderView.Fixed)  # Пресет
@@ -239,8 +284,8 @@ class MainWindow(QMainWindow):
         table.setColumnWidth(3, 100)
         header.setSectionResizeMode(4, QHeaderView.Fixed)  # Прогресс
         table.setColumnWidth(4, 80)
-        header.setSectionResizeMode(5, QHeaderView.Fixed)  # Открыть папку
-        table.setColumnWidth(5, 100)  # На 10 пикселей больше
+        header.setSectionResizeMode(5, QHeaderView.Fixed)  # Открыть
+        table.setColumnWidth(5, 78)   # "Открыть" — чтобы текст помещался
         
         # Настройка drag-and-drop
         table.setAcceptDrops(True)
@@ -276,17 +321,14 @@ class MainWindow(QMainWindow):
         ])
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setSelectionMode(QAbstractItemView.SingleSelection)
-        # Фиксированные ширины колонок:
-        # 0: Название  - в 2 раза меньше прежнего (~75)
-        # 1: Описание  - ~0.75 от прежней (~165)
-        # 2: Удалить   - ~0.75 от прежней (~70)
-        # 3: Применить - ~0.5 от прежней (~90)
+        # Фиксированные ширины колонок таблицы пресетов.
+        # Ширину колонки «Описание» меняйте здесь (строка с setColumnWidth(1, ...)):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
         table.setColumnWidth(0, 75)
-        table.setColumnWidth(1, 205)  # Описание: +40 пикселей
-        table.setColumnWidth(2, 70)
-        table.setColumnWidth(3, 90)
+        table.setColumnWidth(1, 206)  # Описание: 175 + 10 px
+        table.setColumnWidth(2, 70)   # Удалить
+        table.setColumnWidth(3, 88)   # Применить
 
         # Группы кнопок для кодека
         self.codecButtonGroup = QButtonGroup(self)
@@ -441,7 +483,13 @@ class MainWindow(QMainWindow):
             
             # Создаём виджет для видео (если он существует в UI)
             if hasattr(self.ui, 'videoPreviewWidget'):
+                # Размер 16:9 (384x216), чтобы 1920x1080 помещалось без чёрных полос
+                self.ui.videoPreviewWidget.setFixedSize(384, 216)
+                # Отступ слева 8 px — видео по центру относительно кнопок ниже
+                if hasattr(self.ui, 'verticalLayout'):
+                    self.ui.verticalLayout.setContentsMargins(16, 0, 0, 0)
                 self.videoWidget = QVideoWidget(self.ui.videoPreviewWidget)
+                self.videoWidget.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
                 layout = QVBoxLayout(self.ui.videoPreviewWidget)
                 layout.setContentsMargins(0, 0, 0, 0)
                 layout.addWidget(self.videoWidget)
@@ -460,6 +508,9 @@ class MainWindow(QMainWindow):
                 self.trimSegmentBar = TrimSegmentBar(self.ui.videoTimelineSlider.parent())
                 self.ui.verticalLayout.insertWidget(2, self.trimSegmentBar)  # между слайдером и кнопками
                 self._updateTrimSegmentBar()
+            # Клик по таймлайну — перемотка в указанное место (не только перетаскивание)
+            if hasattr(self.ui, 'videoTimelineSlider'):
+                self.ui.videoTimelineSlider.installEventFilter(self)
         except Exception as e:
             print(f"Ошибка инициализации медиаплеера: {e}")
             self.mediaPlayer = None
@@ -620,9 +671,11 @@ class MainWindow(QMainWindow):
             progress_item.setFlags(progress_item.flags() & ~Qt.ItemIsEditable)
             table.setItem(row, 4, progress_item)
 
-            # Столбец 5: Кнопка "Открыть папку" (только для завершенных файлов)
+            # Столбец 5: Кнопка "Открыть" (только для завершенных файлов)
             if item.status == QueueItem.STATUS_SUCCESS and item.output_file:
-                open_btn = QPushButton("Открыть папку")
+                open_btn = QPushButton("Открыть")
+                open_btn.setMaximumHeight(22)
+                open_btn.setStyleSheet("padding: 2px 4px; font-size: 10px; min-height: 0;")
                 open_btn.clicked.connect(lambda _, path=item.output_file: self.openFileLocation(path))
                 table.setCellWidget(row, 5, open_btn)
             else:
@@ -681,7 +734,7 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'presetEditorContainer'):
             self.ui.presetEditorContainer.show()
         # Расширяем окно для показа редактора (независимо от лога)
-        self.resize(1400, 680)
+        self.resize(1300, 680)
 
         # Полоска обрезки привязана к каждой позиции очереди — показываем данные этого файла
         self._updateTrimSegmentBar()
@@ -876,13 +929,17 @@ class MainWindow(QMainWindow):
             table.setItem(row, 0, name_item)
             table.setItem(row, 1, desc_item)
 
-            # Кнопка "Удалить пресет"
+            # Кнопка "Удалить пресет" — компактная
             delete_btn = QPushButton("Удалить")
+            delete_btn.setMaximumHeight(20)
+            delete_btn.setStyleSheet("padding: 1px 4px; font-size: 10px; min-height: 0;")
             delete_btn.clicked.connect(lambda _, n=p["name"]: self.onDeletePresetClicked(n))
             table.setCellWidget(row, 2, delete_btn)
 
-            # Кнопка "Применить к выбранному файлу"
+            # Кнопка "Применить" — компактная
             apply_btn = QPushButton("Применить")
+            apply_btn.setMaximumHeight(20)
+            apply_btn.setStyleSheet("padding: 1px 4px; font-size: 10px; min-height: 0;")
             apply_btn.clicked.connect(lambda _, n=p["name"]: self.onApplyPresetClicked(n))
             table.setCellWidget(row, 3, apply_btn)
 
@@ -1580,7 +1637,7 @@ class MainWindow(QMainWindow):
         self.ui.runButton.setEnabled(False)
         if hasattr(self.ui, 'pauseResumeButton'):
             self.ui.pauseResumeButton.setEnabled(True)
-            self.ui.pauseResumeButton.setText("⏸ Пауза")
+            self.ui.pauseResumeButton.setText("Пауза")
         
         # Сбрасываем прогресс
         self.encodingDuration = 0
@@ -1774,11 +1831,11 @@ class MainWindow(QMainWindow):
         if self.mediaPlayer.playbackState() == QMediaPlayer.PlayingState:
             self.mediaPlayer.pause()
             if hasattr(self.ui, 'videoPlayButton'):
-                self.ui.videoPlayButton.setText("▶ Play")
+                self.ui.videoPlayButton.setText("Play")
         else:
             self.mediaPlayer.play()
             if hasattr(self.ui, 'videoPlayButton'):
-                self.ui.videoPlayButton.setText("⏸ Pause")
+                self.ui.videoPlayButton.setText("Pause")
     
     def stopVideo(self):
         """Останавливает воспроизведение видео"""
@@ -1786,7 +1843,7 @@ class MainWindow(QMainWindow):
             return
         self.mediaPlayer.stop()
         if hasattr(self.ui, 'videoPlayButton'):
-            self.ui.videoPlayButton.setText("▶ Play")
+            self.ui.videoPlayButton.setText("Play")
 
     # Шаг на один кадр (~33 мс при 30 fps)
     FRAME_STEP_MS = 33
@@ -1893,6 +1950,26 @@ class MainWindow(QMainWindow):
         
         if hasattr(self, 'wasPlayingBeforeSeek') and self.wasPlayingBeforeSeek:
             self.mediaPlayer.play()
+
+    def eventFilter(self, obj, event):
+        """Клик по таймлайну — перемотка в указанное место (не только перетаскивание)."""
+        if obj is getattr(self.ui, 'videoTimelineSlider', None) and event.type() == QEvent.Type.MouseButtonPress:
+            slider = obj
+            if self.mediaPlayer and self.videoDuration > 0 and slider.minimum() < slider.maximum():
+                opt = QStyleOptionSlider()
+                slider.initStyleOption(opt)
+                groove = slider.style().subControlRect(
+                    QStyle.ComplexControl.CC_Slider, opt,
+                    QStyle.SubControl.SC_SliderGroove, slider
+                )
+                if groove.isValid() and groove.contains(event.pos()):
+                    x = event.pos().x() - groove.x()
+                    value = slider.minimum() + int((slider.maximum() - slider.minimum()) * x / max(1, groove.width()))
+                    value = max(slider.minimum(), min(slider.maximum(), value))
+                    slider.setValue(value)
+                    self.seekVideo(value)
+                    return True
+        return super().eventFilter(obj, event)
     
     def onVideoDurationChanged(self, duration):
         """Обработчик изменения длительности видео"""
@@ -1922,9 +1999,9 @@ class MainWindow(QMainWindow):
         """Обработчик изменения состояния воспроизведения"""
         if hasattr(self.ui, 'videoPlayButton'):
             if state == QMediaPlayer.PlayingState:
-                self.ui.videoPlayButton.setText("⏸ Pause")
+                self.ui.videoPlayButton.setText("Pause")
             else:
-                self.ui.videoPlayButton.setText("▶ Play")
+                self.ui.videoPlayButton.setText("Play")
     
     def updateVideoTime(self):
         """Обновляет отображение времени видео"""
@@ -2013,7 +2090,7 @@ class MainWindow(QMainWindow):
         self.updateTotalQueueProgress()
         
         if hasattr(self.ui, 'pauseResumeButton'):
-            self.ui.pauseResumeButton.setText("▶ Возобновить")
+            self.ui.pauseResumeButton.setText("Возобновить")
         # Разрешаем нажимать "возобновить" (run остаётся выключенным как и при обычном процессе)
         self.updateStatus("Остановлено. Нажмите ▶ Возобновить для продолжения.")
     
@@ -2042,7 +2119,7 @@ class MainWindow(QMainWindow):
         self.currentQueueIndex = self.pausedQueueIndex
 
         if hasattr(self.ui, 'pauseResumeButton'):
-            self.ui.pauseResumeButton.setText("⏸ Пауза")
+            self.ui.pauseResumeButton.setText("Пауза")
 
         # Запускаем очередь заново с нужного файла
         self.processNextInQueue()
@@ -2190,7 +2267,7 @@ class MainWindow(QMainWindow):
         # Отключаем кнопку паузы
         if hasattr(self.ui, 'pauseResumeButton'):
             self.ui.pauseResumeButton.setEnabled(False)
-            self.ui.pauseResumeButton.setText("⏸ Пауза")
+            self.ui.pauseResumeButton.setText("Пауза")
         
         self.isPaused = False
         
