@@ -28,6 +28,15 @@ DARK_STYLESHEET = """
         color: #6e6e6e;
         border-color: #404040;
     }
+    QPushButton:checked {
+        background-color: #4a9eff;
+        color: #ffffff;
+        border-color: #3a8eef;
+    }
+    QPushButton:checked:hover {
+        background-color: #5aaeff;
+        border-color: #4a9eff;
+    }
     QAbstractScrollArea::viewport {
         background-color: #363636;
     }

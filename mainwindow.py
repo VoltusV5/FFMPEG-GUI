@@ -3,10 +3,11 @@ import os
 import platform
 import shlex
 import re
+import json
 from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
                                QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
-                               QStyleOptionSlider, QStyle)
+                               QStyleOptionSlider, QStyle, QMenu)
 from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
 from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -124,6 +125,10 @@ class MainWindow(QMainWindow):
         self.ffmpegProcess = QProcess(self)
         self.presetManager = PresetManager()
         self.currentPresetName = None  # Текущий редактируемый пресет
+        # Пользовательские контейнеры (mov, webm и т.д.) — сохраняются между запусками
+        self.customContainers = []
+        self._customOptionsPath = os.path.join(os.path.dirname(__file__), "custom_options.json")
+        self._loadCustomOptions()
         self.currentCodecCustom = ""   # Кастомный кодек для редактора пресетов
         self.currentContainerCustom = ""  # Кастомный контейнер
         self.currentResolutionCustom = "" # Кастомное разрешение
@@ -305,6 +310,73 @@ class MainWindow(QMainWindow):
         self.setupDragAndDrop()
 
     # ===== Инициализация и логика редактора пресетов (новый UI) =====
+
+    def _loadCustomOptions(self):
+        """Загружает список пользовательских контейнеров из custom_options.json."""
+        if not os.path.exists(self._customOptionsPath):
+            return
+        try:
+            with open(self._customOptionsPath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.customContainers = data.get("containers", [])
+            if not isinstance(self.customContainers, list):
+                self.customContainers = []
+        except Exception:
+            self.customContainers = []
+
+    def _saveCustomOptions(self):
+        """Сохраняет список пользовательских контейнеров в custom_options.json."""
+        try:
+            data = {"containers": self.customContainers}
+            with open(self._customOptionsPath, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения custom_options: {e}")
+
+    def _showCustomContainerMenu(self):
+        """Показывает выпадающее меню: сохранённые контейнеры + «Добавить»."""
+        btn = getattr(self.ui, "containerCustomButton", None)
+        if btn is None:
+            return
+        menu = QMenu(self)
+        current = (self.currentContainerCustom or "").lower()
+        for name in self.customContainers:
+            if not name or not isinstance(name, str):
+                continue
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            if name.lower() == current:
+                action.setChecked(True)
+            action.triggered.connect(lambda checked=False, n=name: self._onCustomContainerSelected(n))
+        menu.addSeparator()
+        add_action = menu.addAction("Добавить…")
+        add_action.triggered.connect(self._onAddCustomContainer)
+        menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
+
+    def _onCustomContainerSelected(self, name):
+        """Выбран пункт из списка пользовательских контейнеров."""
+        self.currentContainerCustom = name
+        if hasattr(self.ui, "containerCustomButton"):
+            self.ui.containerCustomButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
+    def _onAddCustomContainer(self):
+        """Добавить новый контейнер через диалог."""
+        text, ok = QInputDialog.getText(
+            self,
+            "Пользовательский контейнер",
+            "Введите расширение контейнера (например, mov):",
+            text=self.currentContainerCustom or "mp4"
+        )
+        if ok and text.strip():
+            name = text.strip().lstrip(".").lower()
+            if name and name not in self.customContainers:
+                self.customContainers.append(name)
+                self._saveCustomOptions()
+            self.currentContainerCustom = name
+            if hasattr(self.ui, "containerCustomButton"):
+                self.ui.containerCustomButton.setChecked(True)
+            self.updateCommandFromPresetEditor()
 
     def initPresetEditor(self):
         """Настраивает таблицу пресетов и группы кнопок codec/container/resolution."""
@@ -1166,15 +1238,8 @@ class MainWindow(QMainWindow):
     def onContainerButtonClicked(self, button):
         """Обработчик выбора контейнера в редакторе пресетов."""
         if hasattr(self.ui, 'containerCustomButton') and button is self.ui.containerCustomButton:
-            text, ok = QInputDialog.getText(
-                self,
-                "Пользовательский контейнер",
-                "Введите расширение контейнера (например, mp4):",
-                text=self.currentContainerCustom or "mp4"
-            )
-            if ok and text.strip():
-                self.currentContainerCustom = text.strip().lstrip(".")
-        # Обновляем команду после выбора
+            self._showCustomContainerMenu()
+            return
         self.updateCommandFromPresetEditor()
 
     def onResolutionButtonClicked(self, button):
