@@ -17,10 +17,10 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QPainter, QPalette, QPixmap, QRadialGradient,
     QTransform)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QHBoxLayout, QHeaderView,
-    QLabel, QMainWindow, QMenu, QMenuBar,
-    QProgressBar, QPushButton, QSizePolicy, QSlider,
-    QStatusBar, QTableWidget, QTableWidgetItem, QTextEdit,
-    QVBoxLayout, QWidget)
+    QLabel, QLayout, QMainWindow, QMenu,
+    QMenuBar, QProgressBar, QPushButton, QSizePolicy,
+    QSlider, QStatusBar, QTableWidget, QTableWidgetItem,
+    QTextEdit, QVBoxLayout, QWidget)
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -76,20 +76,29 @@ class Ui_MainWindow(object):
         self.verticalLayout.addWidget(self.videoTimelineSlider)
 
         self.videoControlsLayout = QHBoxLayout()
-        self.videoControlsLayout.setSpacing(4)
+        self.videoControlsLayout.setSpacing(2)
         self.videoControlsLayout.setObjectName(u"videoControlsLayout")
+        self.videoControlsLayout.setSizeConstraint(QLayout.SizeConstraint.SetDefaultConstraint)
         self.videoPlayButton = QPushButton(self.verticalLayoutWidget_2)
         self.videoPlayButton.setObjectName(u"videoPlayButton")
 
         self.videoControlsLayout.addWidget(self.videoPlayButton)
 
-        self.videoStopButton = QPushButton(self.verticalLayoutWidget_2)
-        self.videoStopButton.setObjectName(u"videoStopButton")
+        self.PreviousFrame = QPushButton(self.verticalLayoutWidget_2)
+        self.PreviousFrame.setObjectName(u"PreviousFrame")
+        self.PreviousFrame.setMaximumSize(QSize(30, 16777215))
 
-        self.videoControlsLayout.addWidget(self.videoStopButton)
+        self.videoControlsLayout.addWidget(self.PreviousFrame)
+
+        self.NextFrame = QPushButton(self.verticalLayoutWidget_2)
+        self.NextFrame.setObjectName(u"NextFrame")
+        self.NextFrame.setMaximumSize(QSize(30, 16777215))
+
+        self.videoControlsLayout.addWidget(self.NextFrame)
 
         self.videoTimeLabel = QLabel(self.verticalLayoutWidget_2)
         self.videoTimeLabel.setObjectName(u"videoTimeLabel")
+        self.videoTimeLabel.setMaximumSize(QSize(65, 16777215))
 
         self.videoControlsLayout.addWidget(self.videoTimeLabel)
 
@@ -98,8 +107,24 @@ class Ui_MainWindow(object):
 
         self.videoControlsLayout.addWidget(self.videoMuteButton)
 
-        self.videoControlsLayout.setStretch(0, 2)
-        self.videoControlsLayout.setStretch(1, 2)
+        self.AddKeepArea = QPushButton(self.verticalLayoutWidget_2)
+        self.AddKeepArea.setObjectName(u"AddKeepArea")
+        self.AddKeepArea.setMaximumSize(QSize(30, 16777215))
+
+        self.videoControlsLayout.addWidget(self.AddKeepArea)
+
+        self.SetInPoint = QPushButton(self.verticalLayoutWidget_2)
+        self.SetInPoint.setObjectName(u"SetInPoint")
+        self.SetInPoint.setMaximumSize(QSize(30, 16777215))
+
+        self.videoControlsLayout.addWidget(self.SetInPoint)
+
+        self.SetOutPoint = QPushButton(self.verticalLayoutWidget_2)
+        self.SetOutPoint.setObjectName(u"SetOutPoint")
+        self.SetOutPoint.setMaximumSize(QSize(30, 16777215))
+
+        self.videoControlsLayout.addWidget(self.SetOutPoint)
+
 
         self.verticalLayout.addLayout(self.videoControlsLayout)
 
@@ -419,9 +444,13 @@ class Ui_MainWindow(object):
         self.pauseResumeButton.setText(QCoreApplication.translate("MainWindow", u"\u23f8 \u041f\u0430\u0443\u0437\u0430", None))
         self.showFFmpegLogButton.setText(QCoreApplication.translate("MainWindow", u"\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c \u043b\u043e\u0433 ffmpeg", None))
         self.videoPlayButton.setText(QCoreApplication.translate("MainWindow", u"\u25b6 Play", None))
-        self.videoStopButton.setText(QCoreApplication.translate("MainWindow", u"\u23f9 Stop", None))
+        self.PreviousFrame.setText(QCoreApplication.translate("MainWindow", u"\u2190", None))
+        self.NextFrame.setText(QCoreApplication.translate("MainWindow", u"\u2192", None))
         self.videoTimeLabel.setText(QCoreApplication.translate("MainWindow", u"00:00 / 00:00", None))
         self.videoMuteButton.setText(QCoreApplication.translate("MainWindow", u"\U0000200b\U0001f50a", None))
+        self.AddKeepArea.setText(QCoreApplication.translate("MainWindow", u"+", None))
+        self.SetInPoint.setText(QCoreApplication.translate("MainWindow", u"in", None))
+        self.SetOutPoint.setText(QCoreApplication.translate("MainWindow", u"out", None))
         ___qtablewidgetitem = self.queueTableWidget.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("MainWindow", u"\u0412\u0445\u043e\u0434\u043d\u043e\u0439 \u0444\u0430\u0439\u043b", None));
         ___qtablewidgetitem1 = self.queueTableWidget.horizontalHeaderItem(1)

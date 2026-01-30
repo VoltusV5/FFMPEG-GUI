@@ -5,14 +5,63 @@ import shlex
 import re
 from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
-                               QHeaderView, QAbstractItemView, QButtonGroup)
-from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData
-from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent
+                               QHeaderView, QAbstractItemView, QButtonGroup, QWidget)
+from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF
+from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
 from presetmanager import PresetManager
 from queueitem import QueueItem
+
+
+class TrimSegmentBar(QWidget):
+    """Полоска под слайдером: подсвечивает области обрезки (зелёный — добавленные, синий — текущий in–out)."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(14)
+        self.setMinimumWidth(100)
+        self.duration_sec = 0.0
+        self.keep_segments = []  # [(start, end), ...]
+        self.trim_start_sec = None
+        self.trim_end_sec = None
+
+    def updateSegments(self, duration_sec, keep_segments, trim_start_sec, trim_end_sec):
+        self.duration_sec = duration_sec or 0.0
+        self.keep_segments = list(keep_segments or [])
+        self.trim_start_sec = trim_start_sec
+        self.trim_end_sec = trim_end_sec
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.duration_sec <= 0:
+            return
+        w, h = self.width(), self.height()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        # Фон — тёмно-серая полоска под тему
+        painter.fillRect(0, 0, w, h, QColor(0x40, 0x40, 0x40))
+        # Добавленные области склейки — приглушённый зелёный
+        for start, end in self.keep_segments:
+            if end <= start:
+                continue
+            x1 = int(w * start / self.duration_sec)
+            x2 = int(w * end / self.duration_sec)
+            x1 = max(0, min(x1, w))
+            x2 = max(0, min(x2, w))
+            if x2 > x1:
+                painter.fillRect(x1, 0, x2 - x1, h, QColor(56, 142, 60))  # #388e3c
+        # Текущий промежуток in–out — акцентный синий
+        if self.trim_start_sec is not None and self.trim_end_sec is not None and self.trim_end_sec > self.trim_start_sec:
+            x1 = int(w * self.trim_start_sec / self.duration_sec)
+            x2 = int(w * self.trim_end_sec / self.duration_sec)
+            x1 = max(0, min(x1, w))
+            x2 = max(0, min(x2, w))
+            if x2 > x1:
+                painter.fillRect(x1, 0, x2 - x1, h, QColor(0x4a, 0x9e, 0xff))
+        painter.end()
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -21,6 +70,17 @@ class MainWindow(QMainWindow):
         self.ui.setupUi(self)
         self.setWindowTitle("OpenFF GUI - MVP")
         self.resize(900, 680)
+        # Переопределяем стили под тёмную тему (ui_mainwindow генерируется из .ui)
+        if hasattr(self.ui, 'runButton'):
+            self.ui.runButton.setStyleSheet(
+                "background-color: #2e7d32; color: white; font-weight: bold; padding: 8px; border: 1px solid #1b5e20;"
+            )
+        if hasattr(self.ui, 'videoPreviewWidget'):
+            self.ui.videoPreviewWidget.setStyleSheet("border: 1px solid #505050; background-color: #000000;")
+        if hasattr(self.ui, 'commandDisplay'):
+            self.ui.commandDisplay.setStyleSheet(
+                "background-color: #3c3c3c; color: #e0e0e0; font-family: Consolas, monospace; border: 1px solid #505050;"
+            )
 
         self.ffmpegProcess = QProcess(self)
         self.presetManager = PresetManager()
@@ -109,14 +169,23 @@ class MainWindow(QMainWindow):
         # Подключение кнопок предпросмотра (если они существуют)
         if hasattr(self.ui, 'videoPlayButton'):
             self.ui.videoPlayButton.clicked.connect(self.toggleVideoPlayback)
-        if hasattr(self.ui, 'videoStopButton'):
-            self.ui.videoStopButton.clicked.connect(self.stopVideo)
+        if hasattr(self.ui, 'PreviousFrame'):
+            self.ui.PreviousFrame.clicked.connect(self.stepVideoPreviousFrame)
+        if hasattr(self.ui, 'NextFrame'):
+            self.ui.NextFrame.clicked.connect(self.stepVideoNextFrame)
+        if hasattr(self.ui, 'SetInPoint'):
+            self.ui.SetInPoint.clicked.connect(self.setTrimStart)   # In = начало оставляемого промежутка
+        if hasattr(self.ui, 'SetOutPoint'):
+            self.ui.SetOutPoint.clicked.connect(self.setTrimEnd)   # Out = конец оставляемого промежутка
+        if hasattr(self.ui, 'AddKeepArea'):
+            self.ui.AddKeepArea.clicked.connect(self.addKeepArea)
         if hasattr(self.ui, 'videoMuteButton'):
             self.ui.videoMuteButton.clicked.connect(self.toggleVideoMute)
         if hasattr(self.ui, 'videoTimelineSlider'):
             self.ui.videoTimelineSlider.sliderMoved.connect(self.seekVideo)
             self.ui.videoTimelineSlider.sliderPressed.connect(self.pauseVideoForSeek)
             self.ui.videoTimelineSlider.sliderReleased.connect(self.resumeVideoAfterSeek)
+        self._setVideoPlayerTooltips()
         
         # Подключение кнопки паузы
         if hasattr(self.ui, 'pauseResumeButton'):
@@ -215,7 +284,7 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
         table.setColumnWidth(0, 75)
-        table.setColumnWidth(1, 165)
+        table.setColumnWidth(1, 205)  # Описание: +40 пикселей
         table.setColumnWidth(2, 70)
         table.setColumnWidth(3, 90)
 
@@ -386,9 +455,30 @@ class MainWindow(QMainWindow):
             # Изначально звук включен
             self.audioOutput.setVolume(1.0)
             self.isMuted = False
+            # Полоска меток обрезки под слайдером
+            if hasattr(self.ui, 'verticalLayout') and hasattr(self.ui, 'videoTimelineSlider'):
+                self.trimSegmentBar = TrimSegmentBar(self.ui.videoTimelineSlider.parent())
+                self.ui.verticalLayout.insertWidget(2, self.trimSegmentBar)  # между слайдером и кнопками
+                self._updateTrimSegmentBar()
         except Exception as e:
             print(f"Ошибка инициализации медиаплеера: {e}")
             self.mediaPlayer = None
+        if not hasattr(self, 'trimSegmentBar'):
+            self.trimSegmentBar = None
+    
+    def _updateTrimSegmentBar(self):
+        """Обновляет полоску сегментов обрезки по выделенному файлу и длительности видео."""
+        if not getattr(self, 'trimSegmentBar', None):
+            return
+        item = self.getSelectedQueueItem()
+        duration = getattr(self, 'videoDuration', 0) or 0
+        if not item or duration <= 0:
+            self.trimSegmentBar.updateSegments(0, [], None, None)
+            return
+        keep = getattr(item, 'keep_segments', []) or []
+        start = getattr(item, 'trim_start_sec', None)
+        end = getattr(item, 'trim_end_sec', None)
+        self.trimSegmentBar.updateSegments(duration, keep, start, end)
     
     def addFilesToQueue(self):
         """Добавляет файлы в очередь через диалог выбора"""
@@ -568,6 +658,8 @@ class MainWindow(QMainWindow):
         if not item.output_file:
             self._generateOutputFileForItem(item)
         
+        # Сбрасываем длительность до загрузки нового видео, чтобы полоска обрезки не показывала масштаб прошлого
+        self.videoDuration = 0
         # Загружаем видео
         self.loadVideoForPreview()
 
@@ -590,6 +682,9 @@ class MainWindow(QMainWindow):
             self.ui.presetEditorContainer.show()
         # Расширяем окно для показа редактора (независимо от лога)
         self.resize(1400, 680)
+
+        # Полоска обрезки привязана к каждой позиции очереди — показываем данные этого файла
+        self._updateTrimSegmentBar()
     
     def onQueueItemSelected(self):
         """Обработчик выделения элемента в таблице"""
@@ -608,6 +703,8 @@ class MainWindow(QMainWindow):
             # Останавливаем предпросмотр
             if hasattr(self, 'mediaPlayer') and self.mediaPlayer:
                 self.mediaPlayer.stop()
+            # Полоска обрезки привязана к позиции очереди — для «нет выбора» показываем пустую
+            self._updateTrimSegmentBar()
             return
 
         if len(indices) == 1:
@@ -627,6 +724,7 @@ class MainWindow(QMainWindow):
                 self.ui.commandDisplay.setReadOnly(True)
             if hasattr(self, 'mediaPlayer') and self.mediaPlayer:
                 self.mediaPlayer.stop()
+            self._updateTrimSegmentBar()
     
     def onQueueCellDoubleClicked(self, row, column):
         """Обработчик двойного клика по ячейке таблицы"""
@@ -1156,7 +1254,15 @@ class MainWindow(QMainWindow):
             output_base = os.path.splitext(item.output_file)[0]
             final_output = output_base + "." + container_ext
             final_output = os.path.normpath(final_output)
-            # Обновляем output_file с правильным расширением
+            # Если файл уже существует — подбираем уникальное имя и помечаем как переименованный
+            item.output_renamed = False
+            if os.path.exists(final_output):
+                counter = 1
+                while os.path.exists(final_output):
+                    final_output = output_base + "_" + str(counter) + "." + container_ext
+                    final_output = os.path.normpath(final_output)
+                    counter += 1
+                item.output_renamed = True
             item.output_file = final_output
         else:
             # Генерируем автоматически
@@ -1175,6 +1281,7 @@ class MainWindow(QMainWindow):
 
             final_output = os.path.normpath(final_output)
             item.output_file = final_output
+            item.output_renamed = False
 
         self.lastOutputFile = final_output
         
@@ -1209,12 +1316,22 @@ class MainWindow(QMainWindow):
         if scale:
             vf_args = ["-vf", scale]
 
-        # Формируем команду для отображения (с кавычками вокруг путей)
-        cmd_parts = ["ffmpeg", "-i", self._quotePath(input_file_normalized)]
-        cmd_parts += vf_args
-        cmd_parts += codec_args
+        segments = self._getTrimSegments(item)
+        cmd_parts = ["ffmpeg"]
+        if len(segments) == 1:
+            start_sec, end_sec = segments[0]
+            cmd_parts += ["-ss", str(start_sec), "-i", self._quotePath(input_file_normalized), "-to", str(end_sec)]
+            cmd_parts += vf_args
+            cmd_parts += codec_args
+        elif len(segments) > 1:
+            filter_complex, _ = self._buildTrimConcatFilter(segments, scale)
+            codec_display = codec if codec not in ("default", "current", "") else "libx264"
+            cmd_parts += ["-i", self._quotePath(input_file_normalized), "-filter_complex", f'"{filter_complex}"', "-map", "[v]", "-map", "[outa]", "-c:v", codec_display, "-c:a", "aac"]
+        else:
+            cmd_parts += ["-i", self._quotePath(input_file_normalized)]
+            cmd_parts += vf_args
+            cmd_parts += codec_args
         cmd_parts.append(self._quotePath(final_output))
-
         return " ".join(cmd_parts)
     
     def _generateOutputFileForItem(self, queue_item):
@@ -1278,6 +1395,14 @@ class MainWindow(QMainWindow):
             output_base = os.path.splitext(queue_item.output_file)[0]
             final_output = output_base + "." + container_ext
             final_output = os.path.normpath(final_output)
+            queue_item.output_renamed = False
+            if os.path.exists(final_output):
+                counter = 1
+                while os.path.exists(final_output):
+                    final_output = output_base + "_" + str(counter) + "." + container_ext
+                    final_output = os.path.normpath(final_output)
+                    counter += 1
+                queue_item.output_renamed = True
             queue_item.output_file = final_output
         else:
             # Генерируем автоматически
@@ -1296,6 +1421,7 @@ class MainWindow(QMainWindow):
 
             final_output = os.path.normpath(final_output)
             queue_item.output_file = final_output
+            queue_item.output_renamed = False
 
         self.lastOutputFile = final_output
         
@@ -1324,13 +1450,49 @@ class MainWindow(QMainWindow):
         if scale:
             vf_args = ["-vf", scale]
 
-        # Формируем список аргументов (без кавычек, QProcess сам обработает пробелы)
-        args = ["-i", input_file_normalized]
-        args += vf_args
-        args += codec_args
-        args.append(final_output)
+        # Сегменты обрезки/склейки
+        segments = self._getTrimSegments(queue_item)
+        # Для обрезки увеличиваем analyzeduration/probesize, чтобы FFmpeg корректно определил кодеки
+        probe_args = ["-analyzeduration", "10000000", "-probesize", "10000000"] if segments else []
+        if len(segments) == 1:
+            start_sec, end_sec = segments[0]
+            args = probe_args + ["-ss", str(start_sec), "-i", input_file_normalized, "-to", str(end_sec)]
+            args += vf_args
+            args += codec_args
+            args.append(final_output)
+        elif len(segments) > 1:
+            filter_complex, map_v = self._buildTrimConcatFilter(segments, scale)
+            codec_val = (queue_item.codec or "libx264") if (queue_item.codec and queue_item.codec not in ("default", "current", "")) else "libx264"
+            args = probe_args + ["-i", input_file_normalized, "-filter_complex", filter_complex, "-map", map_v, "-map", "[outa]", "-c:v", codec_val, "-c:a", "aac", final_output]
+        else:
+            args = ["-i", input_file_normalized]
+            args += vf_args
+            args += codec_args
+            args.append(final_output)
 
         return args
+
+    def _getTrimSegments(self, queue_item):
+        """Возвращает список областей обрезки (start_sec, end_sec) для элемента очереди."""
+        out = list(getattr(queue_item, "keep_segments", []) or [])
+        start = getattr(queue_item, "trim_start_sec", None)
+        end = getattr(queue_item, "trim_end_sec", None)
+        if start is not None and end is not None and end > start:
+            out.append((start, end))
+        return out
+
+    def _buildTrimConcatFilter(self, segments, scale_filter):
+        """Строит filter_complex для обрезки и склейки нескольких областей. Возвращает (filter_string, map_v)."""
+        parts = []
+        for i, (s, e) in enumerate(segments):
+            parts.append(f"[0:v]trim=start={s}:end={e},setpts=PTS-STARTPTS[v{i}];[0:a]atrim=start={s}:end={e},asetpts=PTS-STARTPTS[a{i}]")
+        n = len(segments)
+        concat_inputs = "".join(f"[v{i}][a{i}]" for i in range(n))
+        parts.append(f"{concat_inputs}concat=n={n}:v=1:a=1[outv][outa]")
+        if scale_filter:
+            parts.append(f"[outv]{scale_filter}[v]")
+            return ";".join(parts), "[v]"
+        return ";".join(parts), "[outv]"
 
     def startQueueProcessing(self):
         """Начинает обработку очереди файлов"""
@@ -1347,6 +1509,7 @@ class MainWindow(QMainWindow):
             it.status = QueueItem.STATUS_WAITING
             it.progress = 0
             it.error_message = ""
+            it.output_renamed = False
         self.updateQueueTable()
         self.updateTotalQueueProgress()
 
@@ -1621,10 +1784,76 @@ class MainWindow(QMainWindow):
         """Останавливает воспроизведение видео"""
         if not self.mediaPlayer:
             return
-        
         self.mediaPlayer.stop()
         if hasattr(self.ui, 'videoPlayButton'):
             self.ui.videoPlayButton.setText("▶ Play")
+
+    # Шаг на один кадр (~33 мс при 30 fps)
+    FRAME_STEP_MS = 33
+
+    def stepVideoPreviousFrame(self):
+        """Переход на предыдущий кадр"""
+        if not self.mediaPlayer or self.videoDuration <= 0:
+            return
+        pos_ms = self.mediaPlayer.position()
+        self.mediaPlayer.setPosition(max(0, pos_ms - self.FRAME_STEP_MS))
+
+    def stepVideoNextFrame(self):
+        """Переход на следующий кадр"""
+        if not self.mediaPlayer or self.videoDuration <= 0:
+            return
+        pos_ms = self.mediaPlayer.position()
+        duration_ms = int(self.videoDuration * 1000)
+        self.mediaPlayer.setPosition(min(duration_ms, pos_ms + self.FRAME_STEP_MS))
+
+    def setTrimStart(self):
+        """Поставить начало оставляемого промежутка (In) на текущем кадре"""
+        item = self.getSelectedQueueItem()
+        if not item or not self.mediaPlayer:
+            return
+        item.trim_start_sec = self.mediaPlayer.position() / 1000.0
+        self._updateTrimSegmentBar()
+
+    def setTrimEnd(self):
+        """Поставить конец оставляемого промежутка (Out) на текущем кадре"""
+        item = self.getSelectedQueueItem()
+        if not item or not self.mediaPlayer:
+            return
+        item.trim_end_sec = self.mediaPlayer.position() / 1000.0
+        self._updateTrimSegmentBar()
+
+    def addKeepArea(self):
+        """Добавить текущую область (in–out) в список областей склейки"""
+        item = self.getSelectedQueueItem()
+        if not item:
+            return
+        start = getattr(item, "trim_start_sec", None)
+        end = getattr(item, "trim_end_sec", None)
+        if start is not None and end is not None and end > start:
+            if not getattr(item, "keep_segments", None):
+                item.keep_segments = []
+            item.keep_segments.append((start, end))
+        pos_sec = self.mediaPlayer.position() / 1000.0 if self.mediaPlayer else 0
+        item.trim_start_sec = pos_sec
+        item.trim_end_sec = pos_sec
+        self._updateTrimSegmentBar()
+
+    def _setVideoPlayerTooltips(self):
+        """Краткие подсказки при наведении на кнопки плеера"""
+        tooltips = {
+            "videoPlayButton": "Воспроизведение / пауза",
+            "PreviousFrame": "Предыдущий кадр",
+            "NextFrame": "Следующий кадр",
+            "videoTimelineSlider": "Перемотка по времени",
+            "videoTimeLabel": "",  # не трогаем
+            "videoMuteButton": "Вкл/выкл звук",
+            "AddKeepArea": "Добавить область склейки (текущий in–out)",
+            "SetInPoint": "Поставить начало оставляемого промежутка (In) на текущем кадре",
+            "SetOutPoint": "Поставить конец оставляемого промежутка (Out) на текущем кадре",
+        }
+        for name, text in tooltips.items():
+            if text and hasattr(self.ui, name):
+                getattr(self.ui, name).setToolTip(text)
     
     def toggleVideoMute(self):
         """Переключает звук видео"""
@@ -1675,6 +1904,8 @@ class MainWindow(QMainWindow):
         
         # Обновляем отображение времени
         self.updateVideoTime()
+        # Полоска обрезки использует длительность текущего видео — обновить под выбранный файл
+        self._updateTrimSegmentBar()
     
     def onVideoPositionChanged(self, position):
         """Обработчик изменения позиции видео"""

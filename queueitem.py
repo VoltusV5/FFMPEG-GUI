@@ -19,6 +19,12 @@ class QueueItem:
         self.progress = 0            # 0-100
         self.output_file = ""        # Путь к выходному файлу
         self.error_message = ""      # Сообщение об ошибке (если есть)
+        self.output_renamed = False  # True, если выходной путь был изменён из-за существующего файла
+
+        # Обрезка / склейка: области (start_sec, end_sec), которые остаются в финальном видео
+        self.keep_segments = []      # [(start, end), ...] в секундах
+        self.trim_start_sec = None   # Начало текущей области (кнопка In)
+        self.trim_end_sec = None     # Конец текущей области (кнопка Out)
         
         # Параметры кодирования (могут быть из пресета или заданы вручную для файла)
         # Значения:
@@ -57,4 +63,9 @@ class QueueItem:
             QueueItem.STATUS_ERROR: "❌ Ошибка",
             QueueItem.STATUS_PAUSED: "⏸ Приостановлено"
         }
-        return status_map.get(self.status, "❓ Неизвестно")
+        base = status_map.get(self.status, "❓ Неизвестно")
+        if getattr(self, "output_renamed", False) and self.status in (QueueItem.STATUS_PROCESSING, QueueItem.STATUS_SUCCESS):
+            if self.status == QueueItem.STATUS_SUCCESS:
+                return "✅ Успех (переименован)"
+            return "🔄 Переименован"
+        return base
