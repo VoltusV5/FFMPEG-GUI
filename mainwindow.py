@@ -7,7 +7,9 @@ import json
 from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
                                QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
-                               QStyleOptionSlider, QStyle, QMenu)
+                               QStyleOptionSlider, QStyle, QMenu, QHBoxLayout, QLabel,
+                               QSpinBox, QComboBox, QCheckBox, QLineEdit, QScrollArea, QFrame,
+                               QGridLayout)
 from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
 from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -132,6 +134,7 @@ class MainWindow(QMainWindow):
         self.currentCodecCustom = ""   # Кастомный кодек для редактора пресетов
         self.currentContainerCustom = ""  # Кастомный контейнер
         self.currentResolutionCustom = "" # Кастомное разрешение
+        self.currentAudioCodecCustom = ""  # Кастомный аудио-кодек
         
         # Очередь файлов
         self.queue = []  # Список QueueItem
@@ -397,12 +400,12 @@ class MainWindow(QMainWindow):
         # Ширину колонки «Описание» меняйте здесь (строка с setColumnWidth(1, ...)):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
-        table.setColumnWidth(0, 75)
-        table.setColumnWidth(1, 206)  # Описание: 175 + 10 px
+        table.setColumnWidth(0, 125)
+        table.setColumnWidth(1, 275)  # Описание: 175 + 10 px
         table.setColumnWidth(2, 70)   # Удалить
         table.setColumnWidth(3, 88)   # Применить
 
-        # Группы кнопок для кодека
+        # Группа кнопок для видеокодека (добавляем prores, copy перед custom)
         self.codecButtonGroup = QButtonGroup(self)
         self.codecButtonGroup.setExclusive(True)
         for attr in ['codecCurrentButton', 'codecLibx264Button', 'codecLibx265Button', 'codecCustomButton']:
@@ -410,10 +413,19 @@ class MainWindow(QMainWindow):
                 btn = getattr(self.ui, attr)
                 btn.setCheckable(True)
                 self.codecButtonGroup.addButton(btn)
+        codec_idx = self.ui.codecRowLayout.indexOf(self.ui.codecCustomButton)
+        for name, text in [("Prores", "prores"), ("Copy", "copy")]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setObjectName(f"codec{name}Button")
+            self.ui.codecRowLayout.insertWidget(codec_idx, btn)
+            self.codecButtonGroup.addButton(btn)
+            setattr(self, f"_codec{name}Button", btn)
+            codec_idx += 1
         if hasattr(self, 'codecButtonGroup'):
             self.codecButtonGroup.buttonClicked.connect(self.onCodecButtonClicked)
 
-        # Группа кнопок для контейнера
+        # Группа кнопок для контейнера (добавляем mov, avi, mxf перед custom)
         self.containerButtonGroup = QButtonGroup(self)
         self.containerButtonGroup.setExclusive(True)
         for attr in ['containerCurrentButton', 'containerMp4Button', 'containerMkvButton', 'containerCustomButton']:
@@ -421,10 +433,19 @@ class MainWindow(QMainWindow):
                 btn = getattr(self.ui, attr)
                 btn.setCheckable(True)
                 self.containerButtonGroup.addButton(btn)
+        idx = self.ui.containerRowLayout.indexOf(self.ui.containerCustomButton)
+        for name, text in [("Mov", "mov"), ("Avi", "avi"), ("Mxf", "mxf")]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setObjectName(f"container{name}Button")
+            self.ui.containerRowLayout.insertWidget(idx, btn)
+            self.containerButtonGroup.addButton(btn)
+            setattr(self, f"_container{name}Button", btn)
+            idx += 1
         if hasattr(self, 'containerButtonGroup'):
             self.containerButtonGroup.buttonClicked.connect(self.onContainerButtonClicked)
 
-        # Группа кнопок для разрешения
+        # Группа кнопок для разрешения (добавляем 2k, 4k перед custom)
         self.resolutionButtonGroup = QButtonGroup(self)
         self.resolutionButtonGroup.setExclusive(True)
         for attr in ['resolutionCurrentButton', 'resolution480pButton',
@@ -434,8 +455,170 @@ class MainWindow(QMainWindow):
                 btn = getattr(self.ui, attr)
                 btn.setCheckable(True)
                 self.resolutionButtonGroup.addButton(btn)
+        res_idx = self.ui.resolutionRowLayout.indexOf(self.ui.resolutionCustomButton)
+        for name, text in [("2k", "2k"), ("4k", "4k")]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setObjectName(f"resolution{name.upper()}Button")
+            self.ui.resolutionRowLayout.insertWidget(res_idx, btn)
+            self.resolutionButtonGroup.addButton(btn)
+            setattr(self, f"_resolution{name}Button", btn)
+            res_idx += 1
         if hasattr(self, 'resolutionButtonGroup'):
             self.resolutionButtonGroup.buttonClicked.connect(self.onResolutionButtonClicked)
+
+        # Аудио-кодеки: current по умолчанию, + custom
+        self.audioCodecButtonGroup = QButtonGroup(self)
+        self.audioCodecButtonGroup.setExclusive(True)
+        audio_row = QHBoxLayout()
+        audio_row.setSpacing(5)
+        audio_row.addWidget(QLabel("Аудио-кодеки:"))
+        for name, text in [("Aac", "aac"), ("Mp3", "mp3"), ("Pcm16", "pcm_s16le"), ("Pcm24", "pcm_s24le"), ("Current", "current"), ("Custom", "custom")]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setObjectName(f"audioCodec{name}Button")
+            audio_row.addWidget(btn)
+            self.audioCodecButtonGroup.addButton(btn)
+            setattr(self, f"_audioCodec{name}Button", btn)
+        self._audioCodecCurrentButton.setChecked(True)
+        self.ui.presetSettingsLayout.addLayout(audio_row)
+        self.audioCodecButtonGroup.buttonClicked.connect(self.onAudioCodecButtonClicked)
+
+        # Основные настройки: сетка для выравнивания 3 строк (CRF–Bitrate–FPS, аудио–частота–keyint, profile–pixel–tune)
+        parent_4 = self.ui.verticalLayoutWidget_4
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        # Ширины колонок: подписи и поля в одну колонку
+        label_w = 100
+        field_w = 72
+
+        # Строка 0: CRF — Bitrate — FPS
+        l0 = QLabel("CRF:")
+        l0.setMinimumWidth(label_w)
+        grid.addWidget(l0, 0, 0)
+        self._crfSpin = QSpinBox(parent_4)
+        self._crfSpin.setRange(0, 51)
+        self._crfSpin.setValue(23)
+        self._crfSpin.setSpecialValueText("—")
+        self._crfSpin.setMinimumWidth(field_w)
+        grid.addWidget(self._crfSpin, 0, 1)
+        l1 = QLabel("Bitrate (k):")
+        l1.setMinimumWidth(label_w)
+        grid.addWidget(l1, 0, 2)
+        self._bitrateSpin = QSpinBox(parent_4)
+        self._bitrateSpin.setRange(0, 100000)
+        self._bitrateSpin.setValue(0)
+        self._bitrateSpin.setSpecialValueText("—")
+        self._bitrateSpin.setMinimumWidth(field_w)
+        grid.addWidget(self._bitrateSpin, 0, 3)
+        l2 = QLabel("FPS:")
+        l2.setMinimumWidth(label_w)
+        grid.addWidget(l2, 0, 4)
+        self._fpsSpin = QSpinBox(parent_4)
+        self._fpsSpin.setRange(0, 120)
+        self._fpsSpin.setValue(0)
+        self._fpsSpin.setSpecialValueText("—")
+        self._fpsSpin.setMinimumWidth(field_w)
+        grid.addWidget(self._fpsSpin, 0, 5)
+
+        # Строка 1: Аудио битрейт — Частота — Keyint
+        l3 = QLabel("Аудио битрейт (k):")
+        l3.setMinimumWidth(label_w / 2)
+        grid.addWidget(l3, 1, 0)
+        self._audioBitrateSpin = QSpinBox(parent_4)
+        self._audioBitrateSpin.setRange(0, 2000)
+        self._audioBitrateSpin.setValue(0)
+        self._audioBitrateSpin.setSpecialValueText("—")
+        self._audioBitrateSpin.setMinimumWidth(field_w)
+        grid.addWidget(self._audioBitrateSpin, 1, 1)
+        l4 = QLabel("Частота (Hz):")
+        l4.setMinimumWidth(label_w)
+        grid.addWidget(l4, 1, 2)
+        self._sampleRateSpin = QSpinBox(parent_4)
+        self._sampleRateSpin.setRange(0, 192000)
+        self._sampleRateSpin.setValue(0)
+        self._sampleRateSpin.setSpecialValueText("—")
+        self._sampleRateSpin.setMinimumWidth(field_w)
+        grid.addWidget(self._sampleRateSpin, 1, 3)
+        l5 = QLabel("Keyint:")
+        l5.setMinimumWidth(label_w)
+        grid.addWidget(l5, 1, 4)
+        self._keyintSpin = QSpinBox(parent_4)
+        self._keyintSpin.setRange(0, 10000)
+        self._keyintSpin.setValue(0)
+        self._keyintSpin.setSpecialValueText("—")
+        self._keyintSpin.setMinimumWidth(field_w)
+        self._keyintSpin.setToolTip("Интервал ключевых кадров (-g), 0 = не задано")
+        grid.addWidget(self._keyintSpin, 1, 5)
+
+        # Строка 2: Profile/Level — Pixel format — Tune
+        l6 = QLabel("Profile/Level:")
+        l6.setMinimumWidth(label_w)
+        grid.addWidget(l6, 2, 0)
+        self._profileLevelEdit = QLineEdit(parent_4)
+        self._profileLevelEdit.setPlaceholderText("high:4.1…")
+        self._profileLevelEdit.setMinimumWidth(100)
+        grid.addWidget(self._profileLevelEdit, 2, 1)
+        l7 = QLabel("Pixel format:")
+        l7.setMinimumWidth(label_w)
+        grid.addWidget(l7, 2, 2)
+        self._pixelFormatEdit = QLineEdit(parent_4)
+        self._pixelFormatEdit.setPlaceholderText("yuv420p")
+        self._pixelFormatEdit.setMinimumWidth(80)
+        grid.addWidget(self._pixelFormatEdit, 2, 3)
+        l8 = QLabel("Tune:")
+        l8.setMinimumWidth(label_w)
+        grid.addWidget(l8, 2, 4)
+        self._tuneEdit = QLineEdit(parent_4)
+        self._tuneEdit.setPlaceholderText("film…")
+        self._tuneEdit.setMinimumWidth(80)
+        grid.addWidget(self._tuneEdit, 2, 5)
+
+        self.ui.presetSettingsLayout.addLayout(grid)
+
+        # Строка: Preset (medium), Threads — выравнивание по правому краю
+        row_preset = QHBoxLayout()
+        row_preset.addStretch()
+        row_preset.addWidget(QLabel("Preset:"))
+        self._presetCombo = QComboBox(parent_4)
+        for p in ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow", "placebo"]:
+            self._presetCombo.addItem(p)
+        self._presetCombo.setCurrentIndex(5)
+        self._presetCombo.setMinimumWidth(100)
+        row_preset.addWidget(self._presetCombo)
+        row_preset.addWidget(QLabel("Threads:"))
+        self._threadsSpin = QSpinBox(parent_4)
+        self._threadsSpin.setRange(0, 64)
+        self._threadsSpin.setValue(0)
+        self._threadsSpin.setSpecialValueText("auto")
+        self._threadsSpin.setMinimumWidth(80)
+        row_preset.addWidget(self._threadsSpin)
+        self.ui.presetSettingsLayout.addLayout(row_preset)
+
+        # Одна строка с флажками: tag, flags=lanczos
+        row_flags = QHBoxLayout()
+        self._checkTagHvc1 = QCheckBox(parent_4)
+        self._checkTagHvc1.setText("tag")
+        self._checkTagHvc1.setToolTip("-tag:v hvc1 (для совместимости HEVC)")
+        row_flags.addWidget(self._checkTagHvc1)
+        self._checkVfLanczos = QCheckBox(parent_4)
+        self._checkVfLanczos.setText("flags=lanczos")
+        self._checkVfLanczos.setToolTip("-vf scale=1280x720:flags=lanczos")
+        row_flags.addWidget(self._checkVfLanczos)
+        row_flags.addStretch()
+        self.ui.presetSettingsLayout.addLayout(row_flags)
+
+        for w in (self._crfSpin, self._bitrateSpin, self._fpsSpin, self._audioBitrateSpin, self._sampleRateSpin,
+                  self._keyintSpin, self._presetCombo, self._profileLevelEdit, self._pixelFormatEdit, self._tuneEdit, self._threadsSpin,
+                  self._checkTagHvc1, self._checkVfLanczos):
+            if hasattr(w, 'valueChanged'):
+                w.valueChanged.connect(self.updateCommandFromPresetEditor)
+            elif hasattr(w, 'currentIndexChanged'):
+                w.currentIndexChanged.connect(self.updateCommandFromPresetEditor)
+            elif hasattr(w, 'textChanged'):
+                w.textChanged.connect(self.updateCommandFromPresetEditor)
+            elif hasattr(w, 'stateChanged'):
+                w.stateChanged.connect(self.updateCommandFromPresetEditor)
 
         # Подключаем обновление команды при изменении параметров в редакторе
         if hasattr(self, 'codecButtonGroup'):
@@ -1119,13 +1302,17 @@ class MainWindow(QMainWindow):
         self.updateQueueTable()
 
     def _getCodecFromButtons(self):
-        """Возвращает строковое значение codec на основе нажатой кнопки."""
+        """Возвращает строковое значение видеокодека на основе нажатой кнопки."""
         if hasattr(self.ui, 'codecCurrentButton') and self.ui.codecCurrentButton.isChecked():
             return "current"
         if hasattr(self.ui, 'codecLibx264Button') and self.ui.codecLibx264Button.isChecked():
             return "libx264"
         if hasattr(self.ui, 'codecLibx265Button') and self.ui.codecLibx265Button.isChecked():
             return "libx265"
+        if hasattr(self, '_codecProresButton') and self._codecProresButton.isChecked():
+            return "prores"
+        if hasattr(self, '_codecCopyButton') and self._codecCopyButton.isChecked():
+            return "copy"
         if hasattr(self.ui, 'codecCustomButton') and self.ui.codecCustomButton.isChecked():
             return self.currentCodecCustom or "current"
         return "current"
@@ -1137,6 +1324,12 @@ class MainWindow(QMainWindow):
             return "mp4"
         if hasattr(self.ui, 'containerMkvButton') and self.ui.containerMkvButton.isChecked():
             return "mkv"
+        if hasattr(self, '_containerMovButton') and self._containerMovButton.isChecked():
+            return "mov"
+        if hasattr(self, '_containerAviButton') and self._containerAviButton.isChecked():
+            return "avi"
+        if hasattr(self, '_containerMxfButton') and self._containerMxfButton.isChecked():
+            return "mxf"
         if hasattr(self.ui, 'containerCustomButton') and self.ui.containerCustomButton.isChecked():
             return self.currentContainerCustom or "current"
         return "current"
@@ -1150,9 +1343,42 @@ class MainWindow(QMainWindow):
             return "720p"
         if hasattr(self.ui, 'resolution1080pButton') and self.ui.resolution1080pButton.isChecked():
             return "1080p"
+        if hasattr(self, '_resolution2kButton') and self._resolution2kButton.isChecked():
+            return "2k"
+        if hasattr(self, '_resolution4kButton') and self._resolution4kButton.isChecked():
+            return "4k"
         if hasattr(self.ui, 'resolutionCustomButton') and self.ui.resolutionCustomButton.isChecked():
             return self.currentResolutionCustom or "current"
         return "current"
+
+    def _getAudioCodecFromButtons(self):
+        """Возвращает выбранный аудио-кодек."""
+        if hasattr(self, '_audioCodecAacButton') and self._audioCodecAacButton.isChecked():
+            return "aac"
+        if hasattr(self, '_audioCodecMp3Button') and self._audioCodecMp3Button.isChecked():
+            return "mp3"
+        if hasattr(self, '_audioCodecPcm16Button') and self._audioCodecPcm16Button.isChecked():
+            return "pcm_s16le"
+        if hasattr(self, '_audioCodecPcm24Button') and self._audioCodecPcm24Button.isChecked():
+            return "pcm_s24le"
+        if hasattr(self, '_audioCodecCurrentButton') and self._audioCodecCurrentButton.isChecked():
+            return "current"
+        if hasattr(self, '_audioCodecCustomButton') and self._audioCodecCustomButton.isChecked():
+            return self.currentAudioCodecCustom or "aac"
+        return "current"
+
+    def onAudioCodecButtonClicked(self, button):
+        """Обработчик выбора аудио-кодека: для Custom — диалог ввода."""
+        if hasattr(self, '_audioCodecCustomButton') and button is self._audioCodecCustomButton:
+            text, ok = QInputDialog.getText(
+                self,
+                "Пользовательский аудио-кодек",
+                "Введите имя аудио-кодека (например, aac, libopus):",
+                text=self.currentAudioCodecCustom or "aac"
+            )
+            if ok and text.strip():
+                self.currentAudioCodecCustom = text.strip()
+        self.updateCommandFromPresetEditor()
 
     def syncPresetEditorWithPresetData(self, preset):
         """Устанавливает состоние кнопок редактора по данным пресета."""
@@ -1170,6 +1396,10 @@ class MainWindow(QMainWindow):
         elif codec == "libx265":
             if hasattr(self.ui, 'codecLibx265Button'):
                 self.ui.codecLibx265Button.setChecked(True)
+        elif codec == "prores" and hasattr(self, '_codecProresButton'):
+            self._codecProresButton.setChecked(True)
+        elif codec == "copy" and hasattr(self, '_codecCopyButton'):
+            self._codecCopyButton.setChecked(True)
         else:
             # Кастомный кодек
             self.currentCodecCustom = codec
@@ -1186,6 +1416,12 @@ class MainWindow(QMainWindow):
         elif container == "mkv":
             if hasattr(self.ui, 'containerMkvButton'):
                 self.ui.containerMkvButton.setChecked(True)
+        elif container == "mov" and hasattr(self, '_containerMovButton'):
+            self._containerMovButton.setChecked(True)
+        elif container == "avi" and hasattr(self, '_containerAviButton'):
+            self._containerAviButton.setChecked(True)
+        elif container == "mxf" and hasattr(self, '_containerMxfButton'):
+            self._containerMxfButton.setChecked(True)
         else:
             self.currentContainerCustom = container
             if hasattr(self.ui, 'containerCustomButton'):
@@ -1204,10 +1440,60 @@ class MainWindow(QMainWindow):
         elif resolution == "1080p":
             if hasattr(self.ui, 'resolution1080pButton'):
                 self.ui.resolution1080pButton.setChecked(True)
+        elif resolution == "2k" and hasattr(self, '_resolution2kButton'):
+            self._resolution2kButton.setChecked(True)
+        elif resolution == "4k" and hasattr(self, '_resolution4kButton'):
+            self._resolution4kButton.setChecked(True)
         else:
             self.currentResolutionCustom = resolution
             if hasattr(self.ui, 'resolutionCustomButton'):
                 self.ui.resolutionCustomButton.setChecked(True)
+
+        # Аудио-кодек (по умолчанию current)
+        audio = preset.get("audio_codec", "current")
+        if audio == "aac" and hasattr(self, '_audioCodecAacButton'):
+            self._audioCodecAacButton.setChecked(True)
+        elif audio == "mp3" and hasattr(self, '_audioCodecMp3Button'):
+            self._audioCodecMp3Button.setChecked(True)
+        elif audio == "pcm_s16le" and hasattr(self, '_audioCodecPcm16Button'):
+            self._audioCodecPcm16Button.setChecked(True)
+        elif audio == "pcm_s24le" and hasattr(self, '_audioCodecPcm24Button'):
+            self._audioCodecPcm24Button.setChecked(True)
+        elif audio in ("current", "copy") and hasattr(self, '_audioCodecCurrentButton'):
+            self._audioCodecCurrentButton.setChecked(True)
+        elif hasattr(self, '_audioCodecCustomButton'):
+            self.currentAudioCodecCustom = audio if audio not in ("aac", "mp3", "pcm_s16le", "pcm_s24le", "current") else (self.currentAudioCodecCustom or "aac")
+            self._audioCodecCustomButton.setChecked(True)
+
+        # Основные настройки
+        if hasattr(self, '_crfSpin'):
+            self._crfSpin.setValue(int(preset.get("crf", 0) or 0))
+        if hasattr(self, '_bitrateSpin'):
+            self._bitrateSpin.setValue(int(preset.get("bitrate", 0) or 0))
+        if hasattr(self, '_fpsSpin'):
+            self._fpsSpin.setValue(int(preset.get("fps", 0) or 0))
+        if hasattr(self, '_audioBitrateSpin'):
+            self._audioBitrateSpin.setValue(int(preset.get("audio_bitrate", 0) or 0))
+        if hasattr(self, '_sampleRateSpin'):
+            self._sampleRateSpin.setValue(int(preset.get("sample_rate", 0) or 0))
+        if hasattr(self, '_keyintSpin'):
+            self._keyintSpin.setValue(int(preset.get("keyint", 0) or 0))
+        if hasattr(self, '_presetCombo'):
+            idx = self._presetCombo.findText(preset.get("preset_speed", "medium") or "medium")
+            if idx >= 0:
+                self._presetCombo.setCurrentIndex(idx)
+        if hasattr(self, '_profileLevelEdit'):
+            self._profileLevelEdit.setText(preset.get("profile_level", "") or "")
+        if hasattr(self, '_pixelFormatEdit'):
+            self._pixelFormatEdit.setText(preset.get("pixel_format", "") or "")
+        if hasattr(self, '_tuneEdit'):
+            self._tuneEdit.setText(preset.get("tune", "") or "")
+        if hasattr(self, '_threadsSpin'):
+            self._threadsSpin.setValue(int(preset.get("threads", 0) or 0))
+        if hasattr(self, '_checkTagHvc1'):
+            self._checkTagHvc1.setChecked(bool(preset.get("tag_hvc1", False)))
+        if hasattr(self, '_checkVfLanczos'):
+            self._checkVfLanczos.setChecked(bool(preset.get("vf_lanczos", False)))
 
     def syncPresetEditorWithQueueItem(self, item: QueueItem):
         """При выборе файла в очереди подтягиваем в редактор его текущие параметры."""
@@ -1215,6 +1501,20 @@ class MainWindow(QMainWindow):
             "codec": item.codec,
             "container": item.container,
             "resolution": item.resolution,
+            "audio_codec": getattr(item, "audio_codec", "current"),
+            "crf": getattr(item, "crf", 0),
+            "bitrate": getattr(item, "bitrate", 0),
+            "fps": getattr(item, "fps", 0),
+            "audio_bitrate": getattr(item, "audio_bitrate", 0),
+            "sample_rate": getattr(item, "sample_rate", 0),
+            "preset_speed": getattr(item, "preset_speed", "medium"),
+            "profile_level": getattr(item, "profile_level", ""),
+            "pixel_format": getattr(item, "pixel_format", ""),
+            "tune": getattr(item, "tune", ""),
+            "threads": getattr(item, "threads", 0),
+            "keyint": getattr(item, "keyint", False),
+            "tag_hvc1": getattr(item, "tag_hvc1", False),
+            "vf_lanczos": getattr(item, "vf_lanczos", False),
         }
         self.currentPresetName = item.preset_name
         self.syncPresetEditorWithPresetData(preset_data)
@@ -1268,10 +1568,24 @@ class MainWindow(QMainWindow):
             # Нет выделенных файлов — нечего обновлять
             return
 
-        # Получаем текущие значения из кнопок редактора
+        # Получаем текущие значения из кнопок и виджетов редактора
         codec = self._getCodecFromButtons()
         container = self._getContainerFromButtons()
         resolution = self._getResolutionFromButtons()
+        audio_codec = self._getAudioCodecFromButtons()
+        crf = self._crfSpin.value() if hasattr(self, '_crfSpin') else 0
+        bitrate = self._bitrateSpin.value() if hasattr(self, '_bitrateSpin') else 0
+        fps = self._fpsSpin.value() if hasattr(self, '_fpsSpin') else 0
+        audio_bitrate = self._audioBitrateSpin.value() if hasattr(self, '_audioBitrateSpin') else 0
+        sample_rate = self._sampleRateSpin.value() if hasattr(self, '_sampleRateSpin') else 0
+        preset_speed = self._presetCombo.currentText() if hasattr(self, '_presetCombo') else "medium"
+        profile_level = self._profileLevelEdit.text().strip() if hasattr(self, '_profileLevelEdit') else ""
+        pixel_format = self._pixelFormatEdit.text().strip() if hasattr(self, '_pixelFormatEdit') else ""
+        tune = self._tuneEdit.text().strip() if hasattr(self, '_tuneEdit') else ""
+        threads = self._threadsSpin.value() if hasattr(self, '_threadsSpin') else 0
+        keyint = self._keyintSpin.value() if hasattr(self, '_keyintSpin') else 0
+        tag_hvc1 = self._checkTagHvc1.isChecked() if hasattr(self, '_checkTagHvc1') else False
+        vf_lanczos = self._checkVfLanczos.isChecked() if hasattr(self, '_checkVfLanczos') else False
 
         # Обновляем параметры во всех выделенных QueueItem
         default_like = ("default", "current", "")
@@ -1283,6 +1597,20 @@ class MainWindow(QMainWindow):
                 item.codec = codec
                 item.container = container
                 item.resolution = resolution
+                item.audio_codec = audio_codec
+                item.crf = crf
+                item.bitrate = bitrate
+                item.fps = fps
+                item.audio_bitrate = audio_bitrate
+                item.sample_rate = sample_rate
+                item.preset_speed = preset_speed
+                item.profile_level = profile_level
+                item.pixel_format = pixel_format
+                item.tune = tune
+                item.threads = threads
+                item.keyint = int(keyint)
+                item.tag_hvc1 = tag_hvc1
+                item.vf_lanczos = vf_lanczos
 
                 # Устанавливаем custom resolution если выбрано
                 if resolution == "custom":
@@ -1416,18 +1744,21 @@ class MainWindow(QMainWindow):
         if codec not in ("default", "current", ""):
             codec_args = ["-c:v", codec]
 
-        # Параметры разрешения:
-        # - "current"/"default" => не добавляем фильтр scale
-        # - "480p"/"720p"/"1080p" => фиксированные значения
-        # - любое другое значение с ":" или "x" => используем как custom разрешение
+        # Параметры разрешения и масштаба
         res = item.resolution or "current"
         scale = ""
-        if res == "480p":
+        if getattr(item, "vf_lanczos", False):
+            scale = "scale=1280:720:flags=lanczos"
+        elif res == "480p":
             scale = "scale=854:480"
         elif res == "720p":
             scale = "scale=1280:720"
         elif res == "1080p":
             scale = "scale=1920:1080"
+        elif res == "2k":
+            scale = "scale=2560:1440"
+        elif res == "4k":
+            scale = "scale=3840:2160"
         else:
             custom = item.custom_resolution or res
             if isinstance(custom, str) and (":" in custom or "x" in custom):
@@ -1438,6 +1769,45 @@ class MainWindow(QMainWindow):
         if scale:
             vf_args = ["-vf", scale]
 
+        # Доп. аргументы видео (только если не copy)
+        video_extra = []
+        if codec not in ("default", "current", "", "copy"):
+            if getattr(item, "crf", 0) > 0:
+                video_extra += ["-crf", str(item.crf)]
+            if getattr(item, "bitrate", 0) > 0:
+                video_extra += ["-b:v", str(item.bitrate) + "k"]
+            if getattr(item, "fps", 0) > 0:
+                video_extra += ["-r", str(item.fps)]
+            if codec == "libx264" and getattr(item, "preset_speed", ""):
+                video_extra += ["-preset", item.preset_speed]
+            pl = getattr(item, "profile_level", "") or ""
+            if pl:
+                parts_pl = pl.split(":", 1)
+                video_extra += ["-profile:v", parts_pl[0]]
+                if len(parts_pl) > 1:
+                    video_extra += ["-level", parts_pl[1]]
+            pf = getattr(item, "pixel_format", "") or ""
+            if pf:
+                video_extra += ["-pix_fmt", pf]
+            tune_val = getattr(item, "tune", "") or ""
+            if tune_val:
+                video_extra += ["-tune", tune_val]
+            if getattr(item, "threads", 0) > 0:
+                video_extra += ["-threads", str(item.threads)]
+            if getattr(item, "keyint", 0) > 0:
+                video_extra += ["-g", str(item.keyint)]
+
+        # Аудио
+        ac = getattr(item, "audio_codec", "current") or "current"
+        if ac == "current":
+            ac = "copy"
+        audio_args = ["-c:a", ac]
+        if getattr(item, "audio_bitrate", 0) > 0:
+            audio_args += ["-b:a", str(item.audio_bitrate) + "k"]
+        if getattr(item, "sample_rate", 0) > 0:
+            audio_args += ["-ar", str(item.sample_rate)]
+        tag_hvc1 = getattr(item, "tag_hvc1", False)
+
         segments = self._getTrimSegments(item)
         cmd_parts = ["ffmpeg"]
         if len(segments) == 1:
@@ -1445,14 +1815,26 @@ class MainWindow(QMainWindow):
             cmd_parts += ["-ss", str(start_sec), "-i", self._quotePath(input_file_normalized), "-to", str(end_sec)]
             cmd_parts += vf_args
             cmd_parts += codec_args
+            cmd_parts += video_extra
+            cmd_parts += audio_args
+            if tag_hvc1:
+                cmd_parts += ["-tag:v", "hvc1"]
         elif len(segments) > 1:
             filter_complex, _ = self._buildTrimConcatFilter(segments, scale)
             codec_display = codec if codec not in ("default", "current", "") else "libx264"
-            cmd_parts += ["-i", self._quotePath(input_file_normalized), "-filter_complex", f'"{filter_complex}"', "-map", "[v]", "-map", "[outa]", "-c:v", codec_display, "-c:a", "aac"]
+            cmd_parts += ["-i", self._quotePath(input_file_normalized), "-filter_complex", f'"{filter_complex}"', "-map", "[v]", "-map", "[outa]", "-c:v", codec_display]
+            cmd_parts += video_extra
+            cmd_parts += audio_args
+            if tag_hvc1:
+                cmd_parts += ["-tag:v", "hvc1"]
         else:
             cmd_parts += ["-i", self._quotePath(input_file_normalized)]
             cmd_parts += vf_args
             cmd_parts += codec_args
+            cmd_parts += video_extra
+            cmd_parts += audio_args
+            if tag_hvc1:
+                cmd_parts += ["-tag:v", "hvc1"]
         cmd_parts.append(self._quotePath(final_output))
         return " ".join(cmd_parts)
     
@@ -1553,15 +1935,21 @@ class MainWindow(QMainWindow):
         if codec not in ("default", "current", ""):
             codec_args = ["-c:v", codec]
 
-        # Параметры разрешения
+        # Параметры разрешения и масштаба
         res = queue_item.resolution or "current"
         scale = ""
-        if res == "480p":
+        if getattr(queue_item, "vf_lanczos", False):
+            scale = "scale=1280:720:flags=lanczos"
+        elif res == "480p":
             scale = "scale=854:480"
         elif res == "720p":
             scale = "scale=1280:720"
         elif res == "1080p":
             scale = "scale=1920:1080"
+        elif res == "2k":
+            scale = "scale=2560:1440"
+        elif res == "4k":
+            scale = "scale=3840:2160"
         else:
             custom = queue_item.custom_resolution or res
             if isinstance(custom, str) and (":" in custom or "x" in custom):
@@ -1572,24 +1960,74 @@ class MainWindow(QMainWindow):
         if scale:
             vf_args = ["-vf", scale]
 
+        # Доп. аргументы видео (только если не copy)
+        video_extra = []
+        if codec not in ("default", "current", "", "copy"):
+            if getattr(queue_item, "crf", 0) > 0:
+                video_extra += ["-crf", str(queue_item.crf)]
+            if getattr(queue_item, "bitrate", 0) > 0:
+                video_extra += ["-b:v", str(queue_item.bitrate) + "k"]
+            if getattr(queue_item, "fps", 0) > 0:
+                video_extra += ["-r", str(queue_item.fps)]
+            if codec == "libx264" and getattr(queue_item, "preset_speed", ""):
+                video_extra += ["-preset", queue_item.preset_speed]
+            pl = getattr(queue_item, "profile_level", "") or ""
+            if pl:
+                parts_pl = pl.split(":", 1)
+                video_extra += ["-profile:v", parts_pl[0]]
+                if len(parts_pl) > 1:
+                    video_extra += ["-level", parts_pl[1]]
+            pf = getattr(queue_item, "pixel_format", "") or ""
+            if pf:
+                video_extra += ["-pix_fmt", pf]
+            tune_val = getattr(queue_item, "tune", "") or ""
+            if tune_val:
+                video_extra += ["-tune", tune_val]
+            if getattr(queue_item, "threads", 0) > 0:
+                video_extra += ["-threads", str(queue_item.threads)]
+            if getattr(queue_item, "keyint", 0) > 0:
+                video_extra += ["-g", str(queue_item.keyint)]
+
+        ac = getattr(queue_item, "audio_codec", "current") or "current"
+        if ac == "current":
+            ac = "copy"
+        audio_args = ["-c:a", ac]
+        if getattr(queue_item, "audio_bitrate", 0) > 0:
+            audio_args += ["-b:a", str(queue_item.audio_bitrate) + "k"]
+        if getattr(queue_item, "sample_rate", 0) > 0:
+            audio_args += ["-ar", str(queue_item.sample_rate)]
+        tag_hvc1 = getattr(queue_item, "tag_hvc1", False)
+
         # Сегменты обрезки/склейки
         segments = self._getTrimSegments(queue_item)
-        # Для обрезки увеличиваем analyzeduration/probesize, чтобы FFmpeg корректно определил кодеки
         probe_args = ["-analyzeduration", "10000000", "-probesize", "10000000"] if segments else []
         if len(segments) == 1:
             start_sec, end_sec = segments[0]
             args = probe_args + ["-ss", str(start_sec), "-i", input_file_normalized, "-to", str(end_sec)]
             args += vf_args
             args += codec_args
+            args += video_extra
+            args += audio_args
+            if tag_hvc1:
+                args += ["-tag:v", "hvc1"]
             args.append(final_output)
         elif len(segments) > 1:
             filter_complex, map_v = self._buildTrimConcatFilter(segments, scale)
             codec_val = (queue_item.codec or "libx264") if (queue_item.codec and queue_item.codec not in ("default", "current", "")) else "libx264"
-            args = probe_args + ["-i", input_file_normalized, "-filter_complex", filter_complex, "-map", map_v, "-map", "[outa]", "-c:v", codec_val, "-c:a", "aac", final_output]
+            args = probe_args + ["-i", input_file_normalized, "-filter_complex", filter_complex, "-map", map_v, "-map", "[outa]", "-c:v", codec_val]
+            args += video_extra
+            args += audio_args
+            if tag_hvc1:
+                args += ["-tag:v", "hvc1"]
+            args.append(final_output)
         else:
             args = ["-i", input_file_normalized]
             args += vf_args
             args += codec_args
+            args += video_extra
+            args += audio_args
+            if tag_hvc1:
+                args += ["-tag:v", "hvc1"]
             args.append(final_output)
 
         return args

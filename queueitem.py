@@ -35,6 +35,22 @@ class QueueItem:
         self.container = "default"
         self.resolution = "default"
         self.custom_resolution = ""
+        self.audio_codec = "current"
+
+        # Основные настройки (0 или "" = не задано / по умолчанию)
+        self.crf = 0
+        self.bitrate = 0
+        self.fps = 0
+        self.audio_bitrate = 0
+        self.sample_rate = 0
+        self.preset_speed = "medium"
+        self.profile_level = ""
+        self.pixel_format = ""
+        self.tune = ""
+        self.threads = 0
+        self.keyint = 0   # 0 = не задано, >0 = значение -g для FFmpeg
+        self.tag_hvc1 = False
+        self.vf_lanczos = False
         
         # Для паузы на Windows
         self.encoding_duration = 0   # Время кодирования до паузы
@@ -53,6 +69,20 @@ class QueueItem:
             self.codec = preset_data.get('codec', 'default')
             self.container = preset_data.get('container', 'default')
             self.resolution = preset_data.get('resolution', 'default')
+            self.audio_codec = preset_data.get('audio_codec', 'aac')
+            self.crf = int(preset_data.get('crf', 0) or 0)
+            self.bitrate = int(preset_data.get('bitrate', 0) or 0)
+            self.fps = int(preset_data.get('fps', 0) or 0)
+            self.audio_bitrate = int(preset_data.get('audio_bitrate', 0) or 0)
+            self.sample_rate = int(preset_data.get('sample_rate', 0) or 0)
+            self.preset_speed = preset_data.get('preset_speed', 'medium') or 'medium'
+            self.profile_level = preset_data.get('profile_level', '') or ''
+            self.pixel_format = preset_data.get('pixel_format', '') or ''
+            self.tune = preset_data.get('tune', '') or ''
+            self.threads = int(preset_data.get('threads', 0) or 0)
+            self.keyint = int(preset_data.get('keyint', 0) or 0)
+            self.tag_hvc1 = bool(preset_data.get('tag_hvc1', False))
+            self.vf_lanczos = bool(preset_data.get('vf_lanczos', False))
     
     def getStatusText(self):
         """Возвращает текстовое представление статуса"""

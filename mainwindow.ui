@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1313</width>
+    <width>1716</width>
     <height>958</height>
    </rect>
   </property>
@@ -340,7 +340,7 @@
      <rect>
       <x>820</x>
       <y>10</y>
-      <width>471</width>
+      <width>591</width>
       <height>291</height>
      </rect>
     </property>
@@ -349,7 +349,7 @@
       <rect>
        <x>0</x>
        <y>0</y>
-       <width>471</width>
+       <width>591</width>
        <height>291</height>
       </rect>
      </property>
@@ -461,8 +461,8 @@
      <rect>
       <x>820</x>
       <y>320</y>
-      <width>471</width>
-      <height>341</height>
+      <width>731</width>
+      <height>391</height>
      </rect>
     </property>
     <widget class="QWidget" name="verticalLayoutWidget_4">
@@ -470,8 +470,8 @@
       <rect>
        <x>0</x>
        <y>0</y>
-       <width>471</width>
-       <height>141</height>
+       <width>591</width>
+       <height>361</height>
       </rect>
      </property>
      <layout class="QVBoxLayout" name="presetSettingsLayout">
@@ -607,70 +607,6 @@
       </item>
      </layout>
     </widget>
-    <widget class="QWidget" name="widget" native="true">
-     <property name="geometry">
-      <rect>
-       <x>0</x>
-       <y>140</y>
-       <width>471</width>
-       <height>191</height>
-      </rect>
-     </property>
-     <widget class="QWidget" name="horizontalLayoutWidget_6">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>22</y>
-        <width>471</width>
-        <height>141</height>
-       </rect>
-      </property>
-      <layout class="QHBoxLayout" name="horizontalLayout_7">
-       <item>
-        <widget class="QTextEdit" name="commandDisplay">
-         <property name="maximumSize">
-          <size>
-           <width>16777215</width>
-           <height>140</height>
-          </size>
-         </property>
-         <property name="styleSheet">
-          <string notr="true">background-color: #f0f0f0; font-family: Consolas;</string>
-         </property>
-         <property name="readOnly">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QPushButton" name="copyCmdButton">
-      <property name="geometry">
-       <rect>
-        <x>380</x>
-        <y>10</y>
-        <width>91</width>
-        <height>21</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Копировать</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_6">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>131</width>
-        <height>20</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Команда FFmpeg:</string>
-      </property>
-     </widget>
-    </widget>
    </widget>
    <widget class="QWidget" name="widget_2" native="true">
     <property name="geometry">
@@ -687,7 +623,7 @@
        <x>0</x>
        <y>30</y>
        <width>771</width>
-       <height>221</height>
+       <height>201</height>
       </rect>
      </property>
      <property name="readOnly">
@@ -724,13 +660,77 @@
      <number>0</number>
     </property>
    </widget>
+   <widget class="QWidget" name="widget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>810</x>
+      <y>710</y>
+      <width>471</width>
+      <height>191</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="horizontalLayoutWidget_6">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>22</y>
+       <width>471</width>
+       <height>141</height>
+      </rect>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_7">
+      <item>
+       <widget class="QTextEdit" name="commandDisplay">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>140</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">background-color: #f0f0f0; font-family: Consolas;</string>
+        </property>
+        <property name="readOnly">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+    <widget class="QPushButton" name="copyCmdButton">
+     <property name="geometry">
+      <rect>
+       <x>380</x>
+       <y>10</y>
+       <width>91</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Копировать</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>131</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Команда FFmpeg:</string>
+     </property>
+    </widget>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1313</width>
+     <width>1716</width>
      <height>22</height>
     </rect>
    </property>
