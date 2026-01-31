@@ -3,7 +3,6 @@
     "mov",
     "as",
     "fs",
-    "gd",
     "h",
     "fdgjfdggfj",
     "webm"
@@ -12,5 +11,7 @@
   "resolutions": [
     "800:600"
   ],
-  "audio_codecs": []
+  "audio_codecs": [
+    "libopus"
+  ]
 }

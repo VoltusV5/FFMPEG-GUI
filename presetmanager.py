@@ -6,8 +6,11 @@ class PresetManager:
         # Путь к presets.xml рядом с exe или скриптом
         self.presets_file = os.path.join(os.path.dirname(__file__), 'presets.xml')
 
-    def savePreset(self, name, codec, resolution, container, description="", **kwargs):
-        """Сохраняет пресет. Доп. параметры: audio_codec, crf, bitrate, fps, audio_bitrate, sample_rate, preset_speed, profile_level, pixel_format, tune, threads, keyint, tag_hvc1, vf_lanczos."""
+    def savePreset(self, name, codec, resolution, container, description="", insert_at_top=False, **kwargs):
+        """Сохраняет пресет. Существующий сохраняет позицию, новый можно вставить в начало.
+        Доп. параметры: audio_codec, crf, bitrate, fps, audio_bitrate, sample_rate, preset_speed,
+        profile_level, pixel_format, tune, threads, keyint, tag_hvc1, vf_lanczos, extra_args.
+        """
         if os.path.exists(self.presets_file):
             tree = ET.parse(self.presets_file)
             root = tree.getroot()
@@ -15,11 +18,21 @@ class PresetManager:
             root = ET.Element('presets')
             tree = ET.ElementTree(root)
 
+        preset_elem = None
         for preset in list(root):
             if preset.get('name') == name:
-                root.remove(preset)
+                preset_elem = preset
+                break
 
-        preset_elem = ET.SubElement(root, 'preset')
+        if preset_elem is None:
+            preset_elem = ET.Element('preset')
+            if insert_at_top:
+                root.insert(0, preset_elem)
+            else:
+                root.append(preset_elem)
+        else:
+            for child in list(preset_elem):
+                preset_elem.remove(child)
         preset_elem.set('name', name)
         ET.SubElement(preset_elem, 'codec').text = codec or ""
         ET.SubElement(preset_elem, 'resolution').text = resolution or ""
@@ -53,6 +66,34 @@ class PresetManager:
             if preset.get('name') == name:
                 root.remove(preset)
         tree.write(self.presets_file, encoding='utf-8', xml_declaration=True)
+
+    def movePreset(self, name, direction):
+        """Перемещает пресет вверх/вниз в списке. direction: 'up' или 'down'."""
+        if not os.path.exists(self.presets_file):
+            return False
+        tree = ET.parse(self.presets_file)
+        root = tree.getroot()
+        presets = list(root)
+        idx = None
+        for i, p in enumerate(presets):
+            if p.get("name") == name:
+                idx = i
+                break
+        if idx is None:
+            return False
+        if direction == "up" and idx > 0:
+            presets[idx - 1], presets[idx] = presets[idx], presets[idx - 1]
+        elif direction == "down" and idx < len(presets) - 1:
+            presets[idx + 1], presets[idx] = presets[idx], presets[idx + 1]
+        else:
+            return False
+        # Пересобираем root в новом порядке
+        for p in list(root):
+            root.remove(p)
+        for p in presets:
+            root.append(p)
+        tree.write(self.presets_file, encoding='utf-8', xml_declaration=True)
+        return True
 
     def _elem_text(self, elem, default=""):
         if elem is None or elem.text is None:
@@ -179,10 +220,15 @@ class PresetManager:
         try:
             tree = ET.parse(file_path)
             root = tree.getroot()
-            if root.tag != "presets":
+            presets = []
+            if root.tag == "presets":
+                presets = list(root)
+            elif root.tag == "preset":
+                presets = [root]
+            else:
                 return False
             existing = {p.get("name", ""): p for p in self.loadAllPresets()}
-            for preset in root:
+            for preset in presets:
                 name = preset.get("name", "")
                 if not name:
                     continue
@@ -219,22 +265,21 @@ class PresetManager:
                     )
                 else:
                     current = existing[name]
-                    merged = {}
+                    merged = dict(current)
                     for k, v in incoming.items():
                         if k == "name":
                             continue
                         cur = current.get(k, "")
                         if str(cur).strip() in ("", "0") and str(v).strip() not in ("", "0"):
                             merged[k] = v
-                    if merged:
-                        self.savePreset(
-                            name,
-                            current.get("codec", ""),
-                            current.get("resolution", ""),
-                            current.get("container", ""),
-                            current.get("description", ""),
-                            **merged
-                        )
+                    self.savePreset(
+                        name,
+                        merged.get("codec", ""),
+                        merged.get("resolution", ""),
+                        merged.get("container", ""),
+                        merged.get("description", ""),
+                        **{k: merged[k] for k in merged if k not in ("name", "codec", "resolution", "container", "description")}
+                    )
             return True
         except Exception:
             return False

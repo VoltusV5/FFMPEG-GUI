@@ -181,16 +181,18 @@ class Ui_MainWindow(object):
 
         self.QueueUp = QPushButton(self.verticalLayoutWidget)
         self.QueueUp.setObjectName(u"QueueUp")
+        self.QueueUp.setMaximumSize(QSize(40, 16777215))
 
         self.queueButtonsLayout.addWidget(self.QueueUp)
 
         self.QueueDown = QPushButton(self.verticalLayoutWidget)
         self.QueueDown.setObjectName(u"QueueDown")
+        self.QueueDown.setMaximumSize(QSize(40, 16777215))
 
         self.queueButtonsLayout.addWidget(self.QueueDown)
 
         self.queueButtonsLayout.setStretch(0, 4)
-        self.queueButtonsLayout.setStretch(1, 3)
+        self.queueButtonsLayout.setStretch(1, 4)
         self.queueButtonsLayout.setStretch(2, 1)
         self.queueButtonsLayout.setStretch(3, 1)
 
@@ -271,9 +273,27 @@ class Ui_MainWindow(object):
 
         self.savePresetWithCustomParamsButton = QPushButton(self.verticalLayoutWidget_3)
         self.savePresetWithCustomParamsButton.setObjectName(u"savePresetWithCustomParamsButton")
+        self.savePresetWithCustomParamsButton.setMaximumSize(QSize(16777215, 16777215))
 
         self.presetEditorBottomButtonsLayout.addWidget(self.savePresetWithCustomParamsButton)
 
+        self.PresetUp = QPushButton(self.verticalLayoutWidget_3)
+        self.PresetUp.setObjectName(u"PresetUp")
+        self.PresetUp.setMaximumSize(QSize(40, 16777215))
+
+        self.presetEditorBottomButtonsLayout.addWidget(self.PresetUp)
+
+        self.PresetDown = QPushButton(self.verticalLayoutWidget_3)
+        self.PresetDown.setObjectName(u"PresetDown")
+        self.PresetDown.setMaximumSize(QSize(40, 16777215))
+
+        self.presetEditorBottomButtonsLayout.addWidget(self.PresetDown)
+
+        self.presetEditorBottomButtonsLayout.setStretch(0, 4)
+        self.presetEditorBottomButtonsLayout.setStretch(1, 3)
+        self.presetEditorBottomButtonsLayout.setStretch(2, 1)
+        self.presetEditorBottomButtonsLayout.setStretch(3, 1)
+        self.presetEditorBottomButtonsLayout.setStretch(4, 1)
 
         self.presetEditorLayout.addLayout(self.presetEditorBottomButtonsLayout)
 
@@ -485,8 +505,8 @@ class Ui_MainWindow(object):
         self.QueueDown.setText(QCoreApplication.translate("MainWindow", u"\u2193", None))
         self.queueLabel.setText(QCoreApplication.translate("MainWindow", u"\u041e\u0447\u0435\u0440\u0435\u0434\u044c \u0444\u0430\u0439\u043b\u043e\u0432:", None))
         self.label.setText(QCoreApplication.translate("MainWindow", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0430 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
-        self.presetExportButton.setText(QCoreApplication.translate("MainWindow", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
-        self.presetImportButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043f\u0440\u0435\u0441\u0435\u0442\u043e\u0432", None))
+        self.presetExportButton.setText(QCoreApplication.translate("MainWindow", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043a", None))
+        self.presetImportButton.setText(QCoreApplication.translate("MainWindow", u"\u0418\u043c\u043f\u043e\u0440\u0442 \u043d\u0430\u0441\u0442\u0440\u043e\u0435\u043a", None))
         ___qtablewidgetitem6 = self.presetsTableWidget.horizontalHeaderItem(0)
         ___qtablewidgetitem6.setText(QCoreApplication.translate("MainWindow", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None));
         ___qtablewidgetitem7 = self.presetsTableWidget.horizontalHeaderItem(1)
@@ -497,7 +517,9 @@ class Ui_MainWindow(object):
         ___qtablewidgetitem9.setText(QCoreApplication.translate("MainWindow", u"\u041f\u0440\u0438\u043c\u0435\u043d\u0438\u0442\u044c \u043a \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u043c\u0443 \u0444\u0430\u0439\u043b\u0443", None));
         self.createPresetButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
         self.savePresetChangesButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442", None))
-        self.savePresetWithCustomParamsButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442 \u0441 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u0438\u043c\u0438 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u0430\u043c\u0438", None))
+        self.savePresetWithCustomParamsButton.setText(QCoreApplication.translate("MainWindow", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043f\u0440\u0435\u0441\u0435\u0442 (+extra)", None))
+        self.PresetUp.setText(QCoreApplication.translate("MainWindow", u"\u2191", None))
+        self.PresetDown.setText(QCoreApplication.translate("MainWindow", u"\u2193", None))
         self.codecLabel.setText(QCoreApplication.translate("MainWindow", u"\u041a\u043e\u0434\u0435\u043a", None))
         self.codecCurrentButton.setText(QCoreApplication.translate("MainWindow", u"current", None))
         self.codecLibx264Button.setText(QCoreApplication.translate("MainWindow", u"libx264", None))

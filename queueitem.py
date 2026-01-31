@@ -70,7 +70,7 @@ class QueueItem:
             self.codec = preset_data.get('codec', 'default')
             self.container = preset_data.get('container', 'default')
             self.resolution = preset_data.get('resolution', 'default')
-            self.audio_codec = preset_data.get('audio_codec', 'aac')
+            self.audio_codec = preset_data.get('audio_codec', 'current')
             self.crf = int(preset_data.get('crf', 0) or 0)
             self.bitrate = int(preset_data.get('bitrate', 0) or 0)
             self.fps = int(preset_data.get('fps', 0) or 0)

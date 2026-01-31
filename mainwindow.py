@@ -124,6 +124,11 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'savePresetChangesButton'):
             self.ui.savePresetChangesButton.setMaximumHeight(28)
             self.ui.savePresetChangesButton.setStyleSheet("padding: 4px 10px;")
+        for attr in ("savePresetWithCustomParamsButton", "savePresetCustomParamsButton", "savePresetWithExtraParamsButton"):
+            btn = getattr(self.ui, attr, None)
+            if btn is not None:
+                btn.setMaximumHeight(28)
+                btn.setStyleSheet("padding: 4px 10px;")
 
         self.ffmpegProcess = QProcess(self)
         self.presetManager = PresetManager()
@@ -153,6 +158,15 @@ class MainWindow(QMainWindow):
         # состояние команды теперь хранится внутри каждого QueueItem
         self.commandManuallyEdited = False
         self.lastGeneratedCommand = ""
+        self._spinSelectAllOnFocus = set()
+        self._warningLabel = None
+        self._conflictStyles = {}
+        self._extraLabel = None
+        self._queueProgressTarget = None
+        self._queueProgressMaxValue = 0
+        self._queueProgressTimer = QTimer(self)
+        self._queueProgressTimer.timeout.connect(self._tickQueueProgress)
+        self._suppressPresetEditorUpdates = False
         
         # Переменные для прогресса кодирования
         self.encodingProgress = 0
@@ -182,6 +196,26 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'presetEditorContainer'):
             self.ui.presetEditorContainer.show()
 
+        # Выделять весь текст при фокусе у всех QSpinBox
+        for spin in self.findChildren(QSpinBox):
+            self._spinSelectAllOnFocus.add(spin)
+            spin.installEventFilter(self)
+            try:
+                spin.lineEdit().installEventFilter(self)
+            except Exception:
+                pass
+
+        # Более тёмная область выпадающего списка для всех QComboBox
+        combo_style = (
+            "QComboBox::drop-down {"
+            "  background-color: #2f2f2f;"
+            "  border-left: 1px solid #505050;"
+            "  width: 18px;"
+            "}"
+        )
+        for combo in self.findChildren(QComboBox):
+            combo.setStyleSheet(combo_style)
+
         # Подложка таблиц и номера строк — серый фон (как основная подложка)
         for tbl in [getattr(self.ui, "queueTableWidget", None), getattr(self.ui, "presetsTableWidget", None)]:
             if tbl is not None:
@@ -206,14 +240,19 @@ class MainWindow(QMainWindow):
             self.ui.runButton.clicked.connect(self.startQueueProcessing)
         if hasattr(self.ui, 'copyCmdButton'):
             self.ui.copyCmdButton.clicked.connect(self.copyCommand)
+            self.ui.copyCmdButton.setToolTip("Копировать текущую команду FFmpeg в буфер обмена.")
         if hasattr(self.ui, 'saveCurrentCommand'):
             self.ui.saveCurrentCommand.clicked.connect(self.saveCurrentCommand)
+            self.ui.saveCurrentCommand.setToolTip("Сохранить текущую команду FFmpeg как шаблон.")
         if hasattr(self.ui, 'loadSavedCommand'):
             self.ui.loadSavedCommand.clicked.connect(self.loadSavedCommand)
+            self.ui.loadSavedCommand.setToolTip("Загрузить сохранённую команду и применить к выбранному файлу.")
         if hasattr(self.ui, 'deleteSavedCommand'):
             self.ui.deleteSavedCommand.clicked.connect(self.deleteSavedCommand)
+            self.ui.deleteSavedCommand.setToolTip("Удалить сохранённую команду из списка.")
         if hasattr(self.ui, 'openOutputFolderButton'):
             self.ui.openOutputFolderButton.clicked.connect(self.openOutputFolder)
+            self.ui.openOutputFolderButton.setToolTip("Открыть папку с последним выходным файлом.")
 
         # Кнопки редактора пресетов (новый UI)
         if hasattr(self.ui, 'presetExportButton'):
@@ -224,6 +263,10 @@ class MainWindow(QMainWindow):
             self.ui.createPresetButton.clicked.connect(self.createPreset)
         if hasattr(self.ui, 'savePresetChangesButton'):
             self.ui.savePresetChangesButton.clicked.connect(self.saveCurrentPreset)
+        if hasattr(self.ui, 'PresetUp'):
+            self.ui.PresetUp.clicked.connect(self.movePresetUp)
+        if hasattr(self.ui, 'PresetDown'):
+            self.ui.PresetDown.clicked.connect(self.movePresetDown)
         # Кнопка сохранения пресета с пользовательскими доп. параметрами
         for attr in ("savePresetWithCustomParamsButton", "savePresetCustomParamsButton", "savePresetWithExtraParamsButton"):
             btn = getattr(self.ui, attr, None)
@@ -413,6 +456,8 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add_action = menu.addAction("Добавить…")
         add_action.triggered.connect(self._onAddCustomContainer)
+        delete_action = menu.addAction("Удалить…")
+        delete_action.triggered.connect(self._onDeleteCustomContainer)
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _onCustomContainerSelected(self, name):
@@ -440,6 +485,22 @@ class MainWindow(QMainWindow):
                 self.ui.containerCustomButton.setChecked(True)
             self.updateCommandFromPresetEditor()
 
+    def _onDeleteCustomContainer(self):
+        """Удалить контейнер из списка custom."""
+        if not self.customContainers:
+            QMessageBox.information(self, "Контейнеры", "Нет пользовательских контейнеров.")
+            return
+        name, ok = QInputDialog.getItem(self, "Удалить контейнер", "Выберите контейнер:", self.customContainers, 0, False)
+        if not ok or not name:
+            return
+        self.customContainers = [c for c in self.customContainers if c != name]
+        self._saveCustomOptions()
+        if self.currentContainerCustom == name:
+            self.currentContainerCustom = ""
+            if hasattr(self.ui, "containerCurrentButton"):
+                self.ui.containerCurrentButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
     def _showCustomCodecMenu(self):
         """Выпадающее меню: сохранённые кодеки + «Добавить»."""
         btn = getattr(self.ui, "codecCustomButton", None)
@@ -458,6 +519,8 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add_action = menu.addAction("Добавить…")
         add_action.triggered.connect(self._onAddCustomCodec)
+        delete_action = menu.addAction("Удалить…")
+        delete_action.triggered.connect(self._onDeleteCustomCodec)
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _onCustomCodecSelected(self, name):
@@ -481,6 +544,21 @@ class MainWindow(QMainWindow):
                 self.ui.codecCustomButton.setChecked(True)
             self.updateCommandFromPresetEditor()
 
+    def _onDeleteCustomCodec(self):
+        if not self.customCodecs:
+            QMessageBox.information(self, "Кодеки", "Нет пользовательских кодеков.")
+            return
+        name, ok = QInputDialog.getItem(self, "Удалить кодек", "Выберите кодек:", self.customCodecs, 0, False)
+        if not ok or not name:
+            return
+        self.customCodecs = [c for c in self.customCodecs if c != name]
+        self._saveCustomOptions()
+        if self.currentCodecCustom == name:
+            self.currentCodecCustom = ""
+            if hasattr(self.ui, "codecCurrentButton"):
+                self.ui.codecCurrentButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
     def _showCustomResolutionMenu(self):
         """Выпадающее меню: сохранённые разрешения + «Добавить»."""
         btn = getattr(self.ui, "resolutionCustomButton", None)
@@ -500,6 +578,8 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add_action = menu.addAction("Добавить…")
         add_action.triggered.connect(self._onAddCustomResolution)
+        delete_action = menu.addAction("Удалить…")
+        delete_action.triggered.connect(self._onDeleteCustomResolution)
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _onCustomResolutionSelected(self, name):
@@ -523,6 +603,21 @@ class MainWindow(QMainWindow):
                 self.ui.resolutionCustomButton.setChecked(True)
             self.updateCommandFromPresetEditor()
 
+    def _onDeleteCustomResolution(self):
+        if not self.customResolutions:
+            QMessageBox.information(self, "Разрешения", "Нет пользовательских разрешений.")
+            return
+        name, ok = QInputDialog.getItem(self, "Удалить разрешение", "Выберите разрешение:", self.customResolutions, 0, False)
+        if not ok or not name:
+            return
+        self.customResolutions = [r for r in self.customResolutions if r != name]
+        self._saveCustomOptions()
+        if self.currentResolutionCustom.replace("x", ":") == name.replace("x", ":"):
+            self.currentResolutionCustom = ""
+            if hasattr(self.ui, "resolutionCurrentButton"):
+                self.ui.resolutionCurrentButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
+
     def _showCustomAudioCodecMenu(self):
         """Выпадающее меню: сохранённые аудио-кодеки + «Добавить»."""
         btn = getattr(self, "_audioCodecCustomButton", None)
@@ -541,6 +636,8 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         add_action = menu.addAction("Добавить…")
         add_action.triggered.connect(self._onAddCustomAudioCodec)
+        delete_action = menu.addAction("Удалить…")
+        delete_action.triggered.connect(self._onDeleteCustomAudioCodec)
         menu.exec(btn.mapToGlobal(btn.rect().bottomLeft()))
 
     def _onCustomAudioCodecSelected(self, name):
@@ -563,6 +660,21 @@ class MainWindow(QMainWindow):
             if hasattr(self, "_audioCodecCustomButton"):
                 self._audioCodecCustomButton.setChecked(True)
             self.updateCommandFromPresetEditor()
+
+    def _onDeleteCustomAudioCodec(self):
+        if not self.customAudioCodecs:
+            QMessageBox.information(self, "Аудио‑кодеки", "Нет пользовательских аудио‑кодеков.")
+            return
+        name, ok = QInputDialog.getItem(self, "Удалить аудио‑кодек", "Выберите аудио‑кодек:", self.customAudioCodecs, 0, False)
+        if not ok or not name:
+            return
+        self.customAudioCodecs = [c for c in self.customAudioCodecs if c != name]
+        self._saveCustomOptions()
+        if self.currentAudioCodecCustom == name:
+            self.currentAudioCodecCustom = ""
+            if hasattr(self, "_audioCodecCurrentButton"):
+                self._audioCodecCurrentButton.setChecked(True)
+        self.updateCommandFromPresetEditor()
 
     def initPresetEditor(self):
         """Настраивает таблицу пресетов и группы кнопок codec/container/resolution."""
@@ -588,7 +700,7 @@ class MainWindow(QMainWindow):
         table.setColumnWidth(2, 70)   # Удалить
         table.setColumnWidth(3, 88)   # Применить
 
-        # Группа кнопок для видеокодека (добавляем prores, copy перед custom)
+        # Группа кнопок для видеокодека (добавляем prores перед custom)
         self.codecButtonGroup = QButtonGroup(self)
         self.codecButtonGroup.setExclusive(True)
         for attr in ['codecCurrentButton', 'codecLibx264Button', 'codecLibx265Button', 'codecCustomButton']:
@@ -597,7 +709,7 @@ class MainWindow(QMainWindow):
                 btn.setCheckable(True)
                 self.codecButtonGroup.addButton(btn)
         codec_idx = self.ui.codecRowLayout.indexOf(self.ui.codecCustomButton)
-        for name, text in [("Prores", "prores"), ("Copy", "copy")]:
+        for name, text in [("Prores", "prores")]:
             btn = QPushButton(text)
             btn.setCheckable(True)
             btn.setObjectName(f"codec{name}Button")
@@ -681,7 +793,7 @@ class MainWindow(QMainWindow):
         grid.addWidget(l0, 0, 0)
         self._crfSpin = QSpinBox(parent_4)
         self._crfSpin.setRange(0, 51)
-        self._crfSpin.setValue(23)
+        # self._crfSpin.setValue(23)
         self._crfSpin.setSpecialValueText("—")
         self._crfSpin.setMinimumWidth(field_w)
         grid.addWidget(self._crfSpin, 0, 1)
@@ -692,6 +804,7 @@ class MainWindow(QMainWindow):
         self._bitrateSpin.setRange(0, 100000)
         self._bitrateSpin.setValue(0)
         self._bitrateSpin.setSpecialValueText("—")
+        self._bitrateSpin.setSingleStep(100)
         self._bitrateSpin.setMinimumWidth(field_w)
         grid.addWidget(self._bitrateSpin, 0, 3)
         l2 = QLabel("FPS:")
@@ -706,7 +819,7 @@ class MainWindow(QMainWindow):
 
         # Строка 1: Аудио битрейт — Частота — Keyint
         l3 = QLabel("Аудио битрейт (k):")
-        l3.setMinimumWidth(label_w / 2)
+        l3.setMinimumWidth(label_w / 2 + 50)
         grid.addWidget(l3, 1, 0)
         self._audioBitrateSpin = QSpinBox(parent_4)
         self._audioBitrateSpin.setRange(0, 2000)
@@ -791,6 +904,34 @@ class MainWindow(QMainWindow):
         grid.addWidget(self._threadsSpin, 3, 5)
 
         self.ui.presetSettingsLayout.addLayout(grid)
+
+        # Выделение значения в спинбоксе при фокусе (чтобы "—" сразу заменялся вводом)
+        self._spinSelectAllOnFocus.add(self._bitrateSpin)
+        self._bitrateSpin.installEventFilter(self)
+
+        # Предупреждения по конфликтным параметрам
+        self._warningLabel = QLabel("")
+        self._warningLabel.setStyleSheet("color: #ff6666;")
+        self._warningLabel.setWordWrap(True)
+        self._warningLabel.hide()
+        self.ui.presetSettingsLayout.addWidget(self._warningLabel)
+
+        # Информация о extra_args пресета
+        self._extraLabel = QLabel("")
+        self._extraLabel.setStyleSheet("color: #8fb5ff;")
+        self._extraLabel.setWordWrap(True)
+        self._extraLabel.hide()
+        self.ui.presetSettingsLayout.addWidget(self._extraLabel)
+
+        # Более тёмная область выпадающего списка для QComboBox
+        combo_style = (
+            "QComboBox::drop-down {"
+            "  background-color: #2f2f2f;"
+            "  border-left: 1px solid #505050;"
+            "  width: 18px;"
+            "}"
+        )
+        self._presetCombo.setStyleSheet(combo_style)
 
         for w in (self._crfSpin, self._bitrateSpin, self._fpsSpin, self._audioBitrateSpin, self._sampleRateSpin,
                   self._keyintSpin, self._presetCombo, self._profileLevelEdit, self._pixelFormatEdit, self._tuneEdit, self._threadsSpin,
@@ -1095,6 +1236,8 @@ class MainWindow(QMainWindow):
 
             # Столбец 2: Пресет
             preset_text = item.preset_name if item.preset_name else "default"
+            if isinstance(preset_text, str) and preset_text.startswith("cmd:"):
+                preset_text = f"cmd + {preset_text[4:]}"
             preset_item = QTableWidgetItem(preset_text)
             preset_item.setFlags(preset_item.flags() & ~Qt.ItemIsEditable)
             table.setItem(row, 2, preset_item)
@@ -1161,6 +1304,8 @@ class MainWindow(QMainWindow):
         # если пользователь уже редактировал её вручную — показываем именно её,
         # иначе генерируем команду из текущих параметров.
         if getattr(item, "command_manually_edited", False) and getattr(item, "command", ""):
+            if isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:"):
+                self._applyPathsToSavedCommand(item)
             self.commandManuallyEdited = True
             self.lastGeneratedCommand = getattr(item, "last_generated_command", "")
             self.ui.commandDisplay.setPlainText(item.command)
@@ -1266,7 +1411,10 @@ class MainWindow(QMainWindow):
 
             # Если это выделенный файл, обновляем команду
             if row == self.selectedQueueIndex:
-                self.updateCommandFromGUI()
+                if isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:"):
+                    self._applyPathsToSavedCommand(item, update_display=True)
+                else:
+                    self.updateCommandFromGUI()
 
     def updateCommandFromGUI(self):
         """Обновляет команду только если она не была отредактирована вручную"""
@@ -1313,7 +1461,8 @@ class MainWindow(QMainWindow):
             item.command_manually_edited = True
             item.command = current_cmd
             # При ручном редактировании считаем, что для файла используется кастомный пресет
-            item.preset_name = "custom"
+            if not (isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:")):
+                item.preset_name = "custom"
         else:
             # Команда снова совпала с автогенерацией — считаем, что она не редактировалась вручную
             self.commandManuallyEdited = False
@@ -1354,13 +1503,21 @@ class MainWindow(QMainWindow):
         table.setRowCount(len(presets))
 
         for row, p in enumerate(presets):
-            name_item = QTableWidgetItem(p["name"])
+            name_text = p["name"]
+            extra_hint = p.get("extra_args", "") or ""
+            if extra_hint.strip():
+                name_text = f"{p['name']} +extra"
+            name_item = QTableWidgetItem(name_text)
             desc_item = QTableWidgetItem(p.get("description", ""))
             name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
             desc_item.setFlags(desc_item.flags() & ~Qt.ItemIsEditable)
             # При наведении показываем полное название и полное описание
             name_item.setToolTip(p["name"])
-            desc_item.setToolTip(p.get("description", ""))
+            name_item.setData(Qt.UserRole, p["name"])
+            desc_tooltip = p.get("description", "")
+            if extra_hint.strip():
+                desc_tooltip = (desc_tooltip + "\n" if desc_tooltip else "") + f"Extra: {extra_hint}"
+            desc_item.setToolTip(desc_tooltip)
             table.setItem(row, 0, name_item)
             table.setItem(row, 1, desc_item)
 
@@ -1377,6 +1534,40 @@ class MainWindow(QMainWindow):
             apply_btn.setStyleSheet("padding: 1px 4px; font-size: 10px; min-height: 0;")
             apply_btn.clicked.connect(lambda _, n=p["name"]: self.onApplyPresetClicked(n))
             table.setCellWidget(row, 3, apply_btn)
+
+    def _getSelectedPresetName(self):
+        if not hasattr(self.ui, 'presetsTableWidget'):
+            return None, -1
+        table = self.ui.presetsTableWidget
+        row = table.currentRow()
+        if row < 0:
+            return None, -1
+        name_item = table.item(row, 0)
+        if not name_item:
+            return None, -1
+        return name_item.data(Qt.UserRole) or name_item.text(), row
+
+    def movePresetUp(self):
+        name, row = self._getSelectedPresetName()
+        if not name:
+            return
+        if self.presetManager.movePreset(name, "up"):
+            self.refreshPresetsTable()
+            if hasattr(self.ui, 'presetsTableWidget'):
+                self.ui.presetsTableWidget.setCurrentCell(max(row - 1, 0), 0)
+                self.onPresetTableSelectionChanged()
+
+    def movePresetDown(self):
+        name, row = self._getSelectedPresetName()
+        if not name:
+            return
+        if self.presetManager.movePreset(name, "down"):
+            self.refreshPresetsTable()
+            if hasattr(self.ui, 'presetsTableWidget'):
+                table = self.ui.presetsTableWidget
+                new_row = min(row + 1, table.rowCount() - 1)
+                table.setCurrentCell(new_row, 0)
+                self.onPresetTableSelectionChanged()
 
     def onDeletePresetClicked(self, name):
         if not name:
@@ -1408,7 +1599,7 @@ class MainWindow(QMainWindow):
         name_item = table.item(row, 0)
         if not name_item:
             return
-        preset_name = name_item.text()
+        preset_name = name_item.data(Qt.UserRole) or name_item.text()
         preset = self.presetManager.loadPreset(preset_name)
         if preset:
             self.currentPresetName = preset_name
@@ -1481,6 +1672,13 @@ class MainWindow(QMainWindow):
         # и при запуске очереди, так как параметры уже изменены в QueueItem)
         self.updateQueueTable()
 
+        # Если выбран один файл — сразу обновляем команду в окне
+        if len(indices) == 1:
+            self.selectedQueueIndex = indices[0]
+            if hasattr(self.ui, 'commandDisplay'):
+                self.ui.commandDisplay.setReadOnly(False)
+            self.updateCommandFromGUI()
+
     def _getCodecFromButtons(self):
         """Возвращает строковое значение видеокодека на основе нажатой кнопки."""
         if hasattr(self.ui, 'codecCurrentButton') and self.ui.codecCurrentButton.isChecked():
@@ -1491,8 +1689,6 @@ class MainWindow(QMainWindow):
             return "libx265"
         if hasattr(self, '_codecProresButton') and self._codecProresButton.isChecked():
             return "prores"
-        if hasattr(self, '_codecCopyButton') and self._codecCopyButton.isChecked():
-            return "copy"
         if hasattr(self.ui, 'codecCustomButton') and self.ui.codecCustomButton.isChecked():
             return self.currentCodecCustom or "current"
         return "current"
@@ -1556,6 +1752,7 @@ class MainWindow(QMainWindow):
 
     def syncPresetEditorWithPresetData(self, preset):
         """Устанавливает состоние кнопок редактора по данным пресета."""
+        self._suppressPresetEditorUpdates = True
         codec = preset.get("codec", "current")
         container = preset.get("container", "current")
         resolution = preset.get("resolution", "current")
@@ -1572,8 +1769,11 @@ class MainWindow(QMainWindow):
                 self.ui.codecLibx265Button.setChecked(True)
         elif codec == "prores" and hasattr(self, '_codecProresButton'):
             self._codecProresButton.setChecked(True)
-        elif codec == "copy" and hasattr(self, '_codecCopyButton'):
-            self._codecCopyButton.setChecked(True)
+        elif codec == "copy":
+            # copy — скрытая опция, оставляем как custom
+            self.currentCodecCustom = "copy"
+            if hasattr(self.ui, 'codecCustomButton'):
+                self.ui.codecCustomButton.setChecked(True)
         else:
             # Кастомный кодек — добавляем в список сохранённых, если ещё нет
             self.currentCodecCustom = codec
@@ -1683,6 +1883,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_checkVfLanczos'):
             v = preset.get("vf_lanczos", False)
             self._checkVfLanczos.setChecked(v is True or str(v).strip() == "1")
+        self._suppressPresetEditorUpdates = False
+        self._updateConflictWarningsFromEditor()
 
     def syncPresetEditorWithQueueItem(self, item: QueueItem):
         """При выборе файла в очереди подтягиваем в редактор его текущие параметры."""
@@ -1733,6 +1935,8 @@ class MainWindow(QMainWindow):
 
     def updateCommandFromPresetEditor(self):
         """Обновляет команду FFmpeg на основе текущих настроек редактора пресетов."""
+        if getattr(self, "_suppressPresetEditorUpdates", False):
+            return
         table = self.ui.queueTableWidget if hasattr(self.ui, 'queueTableWidget') else None
         if not table:
             return
@@ -1764,6 +1968,7 @@ class MainWindow(QMainWindow):
 
         # Обновляем параметры во всех выделенных QueueItem
         default_like = ("default", "current", "")
+        warned_copy = False
         for idx in indices:
             if 0 <= idx < len(self.queue):
                 item = self.queue[idx]
@@ -1787,6 +1992,17 @@ class MainWindow(QMainWindow):
                 item.tag_hvc1 = tag_hvc1
                 item.vf_lanczos = vf_lanczos
 
+                # Предупреждение: copy игнорирует фильтры и качество
+                if not warned_copy:
+                    if codec == "copy" and (vf_lanczos or resolution not in default_like or crf or bitrate or fps or preset_speed or profile_level or pixel_format or tune or threads or keyint):
+                        if hasattr(self, "updateStatus"):
+                            self.updateStatus("Внимание: при copy видео фильтры/CRF/bitrate/FPS игнорируются.")
+                        warned_copy = True
+                    if audio_codec == "current" and (audio_bitrate or sample_rate):
+                        if hasattr(self, "updateStatus"):
+                            self.updateStatus("Внимание: при copy аудио битрейт/частота игнорируются.")
+                        warned_copy = True
+
                 # Устанавливаем custom resolution если выбрано
                 if resolution == "custom":
                     item.custom_resolution = self.currentResolutionCustom
@@ -1803,25 +2019,163 @@ class MainWindow(QMainWindow):
                 elif not item.output_file:
                     self._generateOutputFileForItem(item)
 
-                # Маркируем пресет для файла (учитываем и аудио-кодек)
-                default_audio = ("current", "", "default")
-                if (codec in default_like and container in default_like and resolution in default_like
-                        and audio_codec in default_audio):
-                    item.preset_name = "default"
+                # Для сохранённой команды обновляем пути в команде
+                if isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:"):
+                    self._applyPathsToSavedCommand(item)
+
+                # Маркируем пресет для файла: custom только если отличается от применённого пресета
+                if isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:"):
+                    pass  # сохранённая команда имеет отдельный маркер
+                elif item.preset_name and item.preset_name not in ("default", "custom"):
+                    applied = self.presetManager.loadPreset(item.preset_name)
+                    if applied and self._presetMatchesItem(applied, item):
+                        pass  # оставляем название пресета
+                    else:
+                        item.preset_name = "custom"
                 else:
-                    item.preset_name = "custom"
+                    default_audio = ("current", "", "default")
+                    if (codec in default_like and container in default_like and resolution in default_like
+                            and audio_codec in default_audio):
+                        item.preset_name = "default"
+                    else:
+                        item.preset_name = "custom"
 
         # Обновляем отображение команды для выделенного файла (если один)
         self.commandManuallyEdited = False
         self.updateQueueTable()
         if len(indices) == 1 and hasattr(self.ui, "commandDisplay"):
             self.updateCommandFromGUI()
+        self._updateConflictWarningsFromEditor()
 
     def getSelectedQueueItem(self):
         """Возвращает выделенный элемент очереди или None"""
         if self.selectedQueueIndex >= 0 and self.selectedQueueIndex < len(self.queue):
             return self.queue[self.selectedQueueIndex]
         return None
+
+    def _presetMatchesItem(self, preset, item):
+        """Сравнивает параметры пресета и QueueItem."""
+        def b(v):
+            return (v is True) or (str(v).strip() == "1")
+        return (
+            (preset.get("codec", "default") or "default") == (item.codec or "default") and
+            (preset.get("container", "default") or "default") == (item.container or "default") and
+            (preset.get("resolution", "default") or "default") == (item.resolution or "default") and
+            (preset.get("audio_codec", "current") or "current") == (item.audio_codec or "current") and
+            int(preset.get("crf", 0) or 0) == int(item.crf or 0) and
+            int(preset.get("bitrate", 0) or 0) == int(item.bitrate or 0) and
+            int(preset.get("fps", 0) or 0) == int(item.fps or 0) and
+            int(preset.get("audio_bitrate", 0) or 0) == int(item.audio_bitrate or 0) and
+            int(preset.get("sample_rate", 0) or 0) == int(item.sample_rate or 0) and
+            (preset.get("preset_speed", "medium") or "medium") == (item.preset_speed or "medium") and
+            (preset.get("profile_level", "") or "") == (item.profile_level or "") and
+            (preset.get("pixel_format", "") or "") == (item.pixel_format or "") and
+            (preset.get("tune", "") or "") == (item.tune or "") and
+            int(preset.get("threads", 0) or 0) == int(item.threads or 0) and
+            int(preset.get("keyint", 0) or 0) == int(item.keyint or 0) and
+            b(preset.get("tag_hvc1", False)) == bool(item.tag_hvc1) and
+            b(preset.get("vf_lanczos", False)) == bool(item.vf_lanczos) and
+            (preset.get("extra_args", "") or "") == (item.extra_args or "")
+        )
+
+    def _getContainerExtForWarnings(self, container_value):
+        if container_value in ("default", "current", "", None):
+            item = self.getSelectedQueueItem()
+            if item and item.file_path:
+                return os.path.splitext(item.file_path)[1].lstrip(".").lower()
+            return ""
+        return str(container_value).lower()
+
+    def _isTagHvc1Applicable(self, codec, container_ext):
+        return container_ext in ("mp4", "mov", "m4v") and (
+            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+        )
+
+    def _setWidgetConflict(self, widget, on):
+        if not widget:
+            return
+        if on:
+            if widget not in self._conflictStyles:
+                self._conflictStyles[widget] = widget.styleSheet()
+            widget.setStyleSheet(self._conflictStyles[widget] + " border:1px solid #ff5555;")
+        else:
+            if widget in self._conflictStyles:
+                widget.setStyleSheet(self._conflictStyles.pop(widget))
+
+    def _clearAllConflicts(self):
+        for w in list(self._conflictStyles.keys()):
+            self._setWidgetConflict(w, False)
+
+    def _updateConflictWarningsFromEditor(self):
+        """Проверяет конфликты параметров и показывает предупреждение в UI."""
+        if self._warningLabel is None:
+            return
+        codec = self._getCodecFromButtons()
+        container = self._getContainerFromButtons()
+        resolution = self._getResolutionFromButtons()
+        audio_codec = self._getAudioCodecFromButtons()
+        crf = self._crfSpin.value() if hasattr(self, "_crfSpin") else 0
+        bitrate = self._bitrateSpin.value() if hasattr(self, "_bitrateSpin") else 0
+        fps = self._fpsSpin.value() if hasattr(self, "_fpsSpin") else 0
+        audio_bitrate = self._audioBitrateSpin.value() if hasattr(self, "_audioBitrateSpin") else 0
+        sample_rate = self._sampleRateSpin.value() if hasattr(self, "_sampleRateSpin") else 0
+        preset_speed = self._presetCombo.currentText() if hasattr(self, "_presetCombo") else ""
+        profile_level = self._profileLevelEdit.text().strip() if hasattr(self, "_profileLevelEdit") else ""
+        pixel_format = self._pixelFormatEdit.text().strip() if hasattr(self, "_pixelFormatEdit") else ""
+        tune = self._tuneEdit.text().strip() if hasattr(self, "_tuneEdit") else ""
+        threads = self._threadsSpin.value() if hasattr(self, "_threadsSpin") else 0
+        keyint = self._keyintSpin.value() if hasattr(self, "_keyintSpin") else 0
+        tag_hvc1 = self._checkTagHvc1.isChecked() if hasattr(self, "_checkTagHvc1") else False
+        vf_lanczos = self._checkVfLanczos.isChecked() if hasattr(self, "_checkVfLanczos") else False
+
+        container_ext = self._getContainerExtForWarnings(container)
+        apply_tag = self._isTagHvc1Applicable(codec, container_ext)
+
+        copy_video_conflict = (codec == "copy") and (
+            vf_lanczos or resolution not in ("current", "default", "") or
+            crf > 0 or bitrate > 0 or fps > 0 or preset_speed or profile_level or
+            pixel_format or tune or threads > 0 or keyint > 0
+        )
+        copy_audio_conflict = (audio_codec in ("current", "copy")) and (audio_bitrate > 0 or sample_rate > 0)
+        tag_conflict = tag_hvc1 and not apply_tag
+
+        warnings = []
+        self._clearAllConflicts()
+
+        if tag_conflict:
+            warnings.append("tag hvc1 будет проигнорирован: поддерживается только HEVC в MP4/MOV/M4V.")
+            self._setWidgetConflict(self._checkTagHvc1, True)
+
+        if copy_video_conflict:
+            warnings.append("Copy видео: фильтры/CRF/битрейт/FPS/preset/keyint игнорируются.")
+            for w in (self._checkVfLanczos, self._crfSpin, self._bitrateSpin, self._fpsSpin,
+                      self._presetCombo, self._profileLevelEdit, self._pixelFormatEdit, self._tuneEdit,
+                      self._threadsSpin, self._keyintSpin):
+                self._setWidgetConflict(w, True)
+
+        if copy_audio_conflict:
+            warnings.append("Copy аудио: битрейт/частота игнорируются.")
+            for w in (self._audioBitrateSpin, self._sampleRateSpin):
+                self._setWidgetConflict(w, True)
+
+        if warnings:
+            self._warningLabel.setText(" | ".join(warnings))
+            self._warningLabel.show()
+        else:
+            self._warningLabel.hide()
+
+        # Extra args (если выбран пресет)
+        if self._extraLabel is not None:
+            name = self.currentPresetName or ""
+            extra_text = ""
+            if name and name not in ("default", "custom") and not name.startswith("cmd:"):
+                preset = self.presetManager.loadPreset(name)
+                extra_text = (preset or {}).get("extra_args", "") or ""
+            if extra_text.strip():
+                self._extraLabel.setText(f"Extra параметры пресета: {extra_text}")
+                self._extraLabel.show()
+            else:
+                self._extraLabel.hide()
     
     def generateFFmpegCommand(self):
         """Генерирует команду FFmpeg для выделенного файла"""
@@ -1914,7 +2268,7 @@ class MainWindow(QMainWindow):
                 scale = "scale=iw:ih:flags=lanczos"
 
         vf_args = []
-        if scale:
+        if scale and codec != "copy":
             vf_args = ["-vf", scale]
 
         # Доп. аргументы видео (CRF, битрейт, FPS и т.д. — для любого кодека кроме copy)
@@ -1926,7 +2280,7 @@ class MainWindow(QMainWindow):
                 video_extra += ["-b:v", str(item.bitrate) + "k"]
             if getattr(item, "fps", 0) > 0:
                 video_extra += ["-r", str(item.fps)]
-            if codec in ("libx264", "libx265", "current", "default", "") and getattr(item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "libx266", "current", "default", "") and getattr(item, "preset_speed", ""):
                 video_extra += ["-preset", item.preset_speed]
             pl = getattr(item, "profile_level", "") or ""
             if pl:
@@ -1950,14 +2304,20 @@ class MainWindow(QMainWindow):
         if ac == "current":
             ac = "copy"
         audio_args = ["-c:a", ac]
-        if getattr(item, "audio_bitrate", 0) > 0:
-            audio_args += ["-b:a", str(item.audio_bitrate) + "k"]
-        if getattr(item, "sample_rate", 0) > 0:
-            audio_args += ["-ar", str(item.sample_rate)]
+        if ac != "copy":
+            if getattr(item, "audio_bitrate", 0) > 0:
+                audio_args += ["-b:a", str(item.audio_bitrate) + "k"]
+            if getattr(item, "sample_rate", 0) > 0:
+                audio_args += ["-ar", str(item.sample_rate)]
         tag_hvc1 = getattr(item, "tag_hvc1", False)
+        container_ext = container_ext.lower() if isinstance(container_ext, str) else ""
+        apply_tag_hvc1 = tag_hvc1 and container_ext in ("mp4", "mov", "m4v") and (
+            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+        )
 
         segments = self._getTrimSegments(item)
         extra_args = self._getExtraArgsList(getattr(item, "extra_args", ""))
+        extra_args = self._filterExtraArgsList(extra_args, item)
         cmd_parts = ["ffmpeg"]
         if len(segments) == 1:
             start_sec, end_sec = segments[0]
@@ -1966,7 +2326,7 @@ class MainWindow(QMainWindow):
             cmd_parts += codec_args
             cmd_parts += video_extra
             cmd_parts += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
             if extra_args:
                 cmd_parts += extra_args
@@ -1976,7 +2336,7 @@ class MainWindow(QMainWindow):
             cmd_parts += ["-i", self._quotePath(input_file_normalized), "-filter_complex", f'"{filter_complex}"', "-map", "[v]", "-map", "[outa]", "-c:v", codec_display]
             cmd_parts += video_extra
             cmd_parts += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
             if extra_args:
                 cmd_parts += extra_args
@@ -1986,7 +2346,7 @@ class MainWindow(QMainWindow):
             cmd_parts += codec_args
             cmd_parts += video_extra
             cmd_parts += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
             if extra_args:
                 cmd_parts += extra_args
@@ -2117,7 +2477,7 @@ class MainWindow(QMainWindow):
                 scale = "scale=iw:ih:flags=lanczos"
 
         vf_args = []
-        if scale:
+        if scale and codec != "copy":
             vf_args = ["-vf", scale]
 
         # Доп. аргументы видео (CRF, битрейт, FPS и т.д. — для любого кодека кроме copy)
@@ -2129,7 +2489,7 @@ class MainWindow(QMainWindow):
                 video_extra += ["-b:v", str(queue_item.bitrate) + "k"]
             if getattr(queue_item, "fps", 0) > 0:
                 video_extra += ["-r", str(queue_item.fps)]
-            if codec in ("libx264", "libx265", "current", "default", "") and getattr(queue_item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "libx266", "current", "default", "") and getattr(queue_item, "preset_speed", ""):
                 video_extra += ["-preset", queue_item.preset_speed]
             pl = getattr(queue_item, "profile_level", "") or ""
             if pl:
@@ -2152,12 +2512,18 @@ class MainWindow(QMainWindow):
         if ac == "current":
             ac = "copy"
         audio_args = ["-c:a", ac]
-        if getattr(queue_item, "audio_bitrate", 0) > 0:
-            audio_args += ["-b:a", str(queue_item.audio_bitrate) + "k"]
-        if getattr(queue_item, "sample_rate", 0) > 0:
-            audio_args += ["-ar", str(queue_item.sample_rate)]
+        if ac != "copy":
+            if getattr(queue_item, "audio_bitrate", 0) > 0:
+                audio_args += ["-b:a", str(queue_item.audio_bitrate) + "k"]
+            if getattr(queue_item, "sample_rate", 0) > 0:
+                audio_args += ["-ar", str(queue_item.sample_rate)]
         tag_hvc1 = getattr(queue_item, "tag_hvc1", False)
+        container_ext = container_ext.lower() if isinstance(container_ext, str) else ""
+        apply_tag_hvc1 = tag_hvc1 and container_ext in ("mp4", "mov", "m4v") and (
+            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+        )
         extra_args = self._getExtraArgsList(getattr(queue_item, "extra_args", ""))
+        extra_args = self._filterExtraArgsList(extra_args, queue_item)
 
         # Сегменты обрезки/склейки
         segments = self._getTrimSegments(queue_item)
@@ -2169,7 +2535,7 @@ class MainWindow(QMainWindow):
             args += codec_args
             args += video_extra
             args += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 args += ["-tag:v", "hvc1"]
             if extra_args:
                 args += extra_args
@@ -2180,7 +2546,7 @@ class MainWindow(QMainWindow):
             args = probe_args + ["-i", input_file_normalized, "-filter_complex", filter_complex, "-map", map_v, "-map", "[outa]", "-c:v", codec_val]
             args += video_extra
             args += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 args += ["-tag:v", "hvc1"]
             if extra_args:
                 args += extra_args
@@ -2191,7 +2557,7 @@ class MainWindow(QMainWindow):
             args += codec_args
             args += video_extra
             args += audio_args
-            if tag_hvc1:
+            if apply_tag_hvc1:
                 args += ["-tag:v", "hvc1"]
             if extra_args:
                 args += extra_args
@@ -2237,6 +2603,16 @@ class MainWindow(QMainWindow):
             it.progress = 0
             it.error_message = ""
             it.output_renamed = False
+            it.encoding_duration = 0
+            it.processed_frames = 0
+        # Сброс общего прогресса
+        self._queueProgressMaxValue = 0
+        self._queueProgressTarget = 0
+        if hasattr(self.ui, 'totalQueueProgressBar'):
+            self.ui.totalQueueProgressBar.setValue(0)
+        # Предварительно получаем длительности/кадры для всей очереди (если возможно)
+        for it in self.queue:
+            self._getVideoDurationForItem(it)
         self.updateQueueTable()
         self.updateTotalQueueProgress()
 
@@ -2313,6 +2689,8 @@ class MainWindow(QMainWindow):
         
         # Сбрасываем прогресс
         self.encodingDuration = 0
+        self.currentFrame = 0
+        item.processed_frames = 0
         if hasattr(self.ui, 'encodingProgressBar'):
             self.ui.encodingProgressBar.setValue(0)
         
@@ -2331,6 +2709,38 @@ class MainWindow(QMainWindow):
             parts = parts[1:]
         return parts
 
+    def _argsToCommand(self, args):
+        """Собирает строку команды из списка аргументов."""
+        def _quote_arg(arg):
+            if arg is None:
+                return ""
+            s = str(arg)
+            if not s:
+                return '""'
+            if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
+                return s
+            if any(ch.isspace() for ch in s):
+                return f'"{s}"'
+            return s
+        return "ffmpeg " + " ".join(_quote_arg(a) for a in args)
+
+    def _applyPathsToSavedCommand(self, item, update_display=False):
+        """Подставляет актуальные пути в сохранённую команду и обновляет поле команды."""
+        if not item or not getattr(item, "command", "").strip():
+            return
+        try:
+            args = self._parseCommand(item.command)
+            args = self._substitutePathsInArgs(args, item)
+            new_cmd = self._argsToCommand(args)
+            item.command = new_cmd
+            if update_display and hasattr(self.ui, "commandDisplay"):
+                cmd_widget = self.ui.commandDisplay
+                cmd_widget.blockSignals(True)
+                cmd_widget.setPlainText(new_cmd)
+                cmd_widget.blockSignals(False)
+        except Exception:
+            pass
+
     def _getExtraArgsList(self, extra_args_str):
         """Парсит строку доп. аргументов в список для FFmpeg."""
         if not extra_args_str:
@@ -2339,6 +2749,39 @@ class MainWindow(QMainWindow):
             return shlex.split(extra_args_str)
         except Exception:
             return extra_args_str.split()
+
+    def _filterExtraArgsList(self, args, queue_item):
+        """Удаляет из доп. аргументов конфликтующие флаги и явные пути вход/выход."""
+        if not args:
+            return []
+        out = []
+        skip_next_for = {"-i", "-vf", "-filter_complex", "-map", "-c:v", "-c:a", "-c", "-codec:v", "-codec:a"}
+        input_path = os.path.normpath(queue_item.file_path) if queue_item else ""
+        output_path = os.path.normpath(queue_item.output_file) if queue_item and queue_item.output_file else ""
+        i = 0
+        while i < len(args):
+            token = args[i]
+            if token in skip_next_for:
+                i += 2
+                continue
+            if token in ("-y", "-an", "-vn", "-sn"):
+                i += 1
+                continue
+            # Убираем явные пути вход/выход
+            if input_path and os.path.normpath(token) == input_path:
+                i += 1
+                continue
+            if output_path and os.path.normpath(token) == output_path:
+                i += 1
+                continue
+            # Убираем подозрительные пути-аргументы без флага (обычно выходной файл)
+            if not token.startswith("-") and "=" not in token:
+                if any(sep in token for sep in ("/", "\\")) or (":" in token and len(token) > 2):
+                    i += 1
+                    continue
+            out.append(token)
+            i += 1
+        return out
 
     def _stripInputOutputArgs(self, args):
         """Удаляет из списка аргументов первый -i <input> и последний <output>."""
@@ -2353,14 +2796,49 @@ class MainWindow(QMainWindow):
             out = out[:-1]
         return out
 
+    def _tokenizeArgsPairs(self, args):
+        """Превращает список аргументов в список пар (flag, value) с учётом флагов, принимающих значения."""
+        flags_with_value = {
+            "-i", "-c:v", "-c:a", "-c", "-codec:v", "-codec:a", "-b:v", "-b:a", "-r", "-crf",
+            "-preset", "-profile:v", "-level", "-pix_fmt", "-tune", "-threads", "-g", "-vf",
+            "-filter_complex", "-map", "-tag:v", "-ar", "-s", "-ss", "-to"
+        }
+        pairs = []
+        i = 0
+        while i < len(args):
+            token = args[i]
+            if token in flags_with_value and i + 1 < len(args):
+                pairs.append((token, args[i + 1]))
+                i += 2
+            else:
+                pairs.append((token, None))
+                i += 1
+        return pairs
+
+    def _diffArgsPairs(self, base_pairs, user_pairs):
+        """Возвращает пары аргументов, которых нет в базовой команде."""
+        base = list(base_pairs)
+        extra = []
+        for pair in user_pairs:
+            if pair in base:
+                base.remove(pair)
+            else:
+                extra.append(pair)
+        return extra
+
     def _extractExtraArgsFromCommands(self, base_cmd, user_cmd):
         """Сравнивает базовую команду (из UI) с командой пользователя и возвращает список доп. аргументов."""
         base_args = self._stripInputOutputArgs(self._parseCommand(base_cmd))
         user_args = self._stripInputOutputArgs(self._parseCommand(user_cmd))
-        extra = list(user_args)
-        for arg in base_args:
-            if arg in extra:
-                extra.remove(arg)
+        base_pairs = self._tokenizeArgsPairs(base_args)
+        user_pairs = self._tokenizeArgsPairs(user_args)
+        extra_pairs = self._diffArgsPairs(base_pairs, user_pairs)
+        # обратно в плоский список
+        extra = []
+        for flag, val in extra_pairs:
+            extra.append(flag)
+            if val is not None:
+                extra.append(val)
         return extra
 
     def _substitutePathsInArgs(self, args, queue_item):
@@ -2453,6 +2931,11 @@ class MainWindow(QMainWindow):
         frame_match = re.search(r'frame=\s*(\d+)', line)
         if frame_match:
             self.currentFrame = int(frame_match.group(1))
+            try:
+                prev = getattr(item, "processed_frames", 0) or 0
+                item.processed_frames = max(prev, self.currentFrame)
+            except Exception:
+                item.processed_frames = self.currentFrame
         
         # Парсим time (время кодирования)
         time_match = re.search(r'time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})', line)
@@ -2500,32 +2983,89 @@ class MainWindow(QMainWindow):
                     timeline_position = int((self.encodingDuration / item.video_duration) * max_value)
                     self.ui.videoTimelineSlider.setValue(timeline_position)
 
+        # Общий прогресс обновляем постоянно из логов
+        self.updateTotalQueueProgress()
+
     def updateTotalQueueProgress(self):
         """Обновляет общий прогресс-бар для всей очереди файлов."""
         if not self.queue or not hasattr(self.ui, 'totalQueueProgressBar'):
             return
+        # 1) Прогресс по кадрам (если для всех файлов известны total_frames)
+        have_frames = all(getattr(it, "total_frames", 0) > 0 for it in self.queue)
+        total_frames = sum(getattr(it, "total_frames", 0) or 0 for it in self.queue) if have_frames else 0
+        if total_frames > 0:
+            done_frames = 0
+            for it in self.queue:
+                if it.status == QueueItem.STATUS_SUCCESS:
+                    done_frames += getattr(it, "total_frames", 0) or 0
+            if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
+                current_item = self.queue[self.currentQueueIndex]
+                if current_item.status == QueueItem.STATUS_PROCESSING:
+                    cur_total = getattr(current_item, "total_frames", 0) or 0
+                    cur_done = getattr(current_item, "processed_frames", 0) or 0
+                    if cur_total > 0:
+                        done_frames += min(cur_done, cur_total)
+            percentage = int(min(100.0, (done_frames / total_frames) * 100))
+            self._setQueueProgressTarget(percentage)
+            return
 
+        # 2) Фолбэк: прогресс по длительности
+        total_duration = sum(max(0.0, getattr(it, "video_duration", 0) or 0) for it in self.queue)
+        if total_duration > 0:
+            done = 0.0
+            for it in self.queue:
+                if it.status == QueueItem.STATUS_SUCCESS:
+                    done += max(0.0, getattr(it, "video_duration", 0) or 0)
+            if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
+                current_item = self.queue[self.currentQueueIndex]
+                if current_item.status == QueueItem.STATUS_PROCESSING:
+                    cur_dur = max(0.0, getattr(current_item, "video_duration", 0) or 0)
+                    cur_time = max(0.0, getattr(current_item, "encoding_duration", 0) or 0)
+                    if cur_dur > 0:
+                        done += min(cur_time, cur_dur)
+            percentage = int(min(100.0, (done / total_duration) * 100))
+            self._setQueueProgressTarget(percentage)
+            return
+
+        # 3) Фолбэк: по количеству файлов
         total_files = len(self.queue)
         completed_files = sum(1 for item in self.queue if item.status == QueueItem.STATUS_SUCCESS)
-
-        # Если есть обрабатываемый файл, добавляем его прогресс
         current_progress = 0
         if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
             current_item = self.queue[self.currentQueueIndex]
             if current_item.status == QueueItem.STATUS_PROCESSING:
                 current_progress = current_item.progress
-
-        # Общий прогресс = завершенные файлы + текущий прогресс текущего файла
         total_progress = completed_files * 100 + current_progress
-
-        # Максимум = общее количество файлов * 100
         max_progress = total_files * 100
+        self._setQueueProgressTarget(int(total_progress / max_progress * 100) if max_progress > 0 else 0)
 
-        if max_progress > 0:
-            percentage = int(total_progress / max_progress * 100)
-            self.ui.totalQueueProgressBar.setValue(percentage)
+    def _setQueueProgressTarget(self, value):
+        if not hasattr(self.ui, 'totalQueueProgressBar'):
+            return
+        value = max(0, min(100, int(value)))
+        self._queueProgressMaxValue = max(getattr(self, "_queueProgressMaxValue", 0), value)
+        self._queueProgressTarget = self._queueProgressMaxValue
+        if not self._queueProgressTimer.isActive():
+            self._queueProgressTimer.start(50)
+
+    def _tickQueueProgress(self):
+        if not hasattr(self.ui, 'totalQueueProgressBar'):
+            self._queueProgressTimer.stop()
+            return
+        if self._queueProgressTarget is None:
+            self._queueProgressTimer.stop()
+            return
+        current = self.ui.totalQueueProgressBar.value()
+        target = self._queueProgressTarget
+        if current == target:
+            self._queueProgressTimer.stop()
+            return
+        step = 2 if abs(target - current) > 3 else 1
+        if current < target:
+            current = min(target, current + step)
         else:
-            self.ui.totalQueueProgressBar.setValue(0)
+            current = max(target, current - step)
+        self.ui.totalQueueProgressBar.setValue(current)
     
     def loadVideoForPreview(self):
         """Загружает видео в медиаплеер для предпросмотра"""
@@ -2676,6 +3216,15 @@ class MainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Клик по таймлайну — перемотка в указанное место (не только перетаскивание)."""
+        spin_set = getattr(self, "_spinSelectAllOnFocus", set())
+        if event.type() in (QEvent.FocusIn, QEvent.MouseButtonPress):
+            # Выделение текста в QSpinBox при клике/фокусе
+            if obj in spin_set:
+                QTimer.singleShot(0, lambda o=obj: o.lineEdit().selectAll())
+            elif isinstance(obj, QLineEdit) and isinstance(obj.parent(), QSpinBox):
+                if obj.parent() in spin_set:
+                    QTimer.singleShot(0, obj.selectAll)
+
         if obj is getattr(self.ui, 'videoTimelineSlider', None) and event.type() == QEvent.Type.MouseButtonPress:
             slider = obj
             if self.mediaPlayer and self.videoDuration > 0 and slider.minimum() < slider.maximum():
@@ -2934,15 +3483,53 @@ class MainWindow(QMainWindow):
                 # Если что‑то пошло не так при определении пути, просто используем "ffprobe"
                 pass
 
-            # Используем ffprobe для получения длительности
-            cmd = [ffprobe_executable, '-v', 'error', '-show_entries', 'format=duration', 
-                   '-of', 'default=noprint_wrappers=1:nokey=1', item.file_path]
+            # Используем ffprobe для получения длительности/кадров
+            cmd = [
+                ffprobe_executable, '-v', 'error',
+                '-select_streams', 'v:0',
+                '-show_entries', 'format=duration:stream=avg_frame_rate,nb_frames',
+                '-of', 'json',
+                item.file_path
+            ]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
             if result.returncode == 0:
-                duration_str = result.stdout.strip()
+                data = {}
+                try:
+                    data = json.loads(result.stdout or "{}")
+                except Exception:
+                    data = {}
+                duration_str = (data.get("format") or {}).get("duration", "") or ""
                 if duration_str:
                     item.video_duration = float(duration_str)
                     self.videoDuration = item.video_duration
+                # FPS и кол-во кадров
+                streams = data.get("streams") or []
+                if streams:
+                    stream = streams[0] or {}
+                    fps_str = stream.get("avg_frame_rate", "") or ""
+                    nb_frames_str = stream.get("nb_frames", "") or ""
+                    fps_val = 0.0
+                    if fps_str and fps_str != "0/0":
+                        if "/" in fps_str:
+                            num, den = fps_str.split("/", 1)
+                            try:
+                                den_val = float(den)
+                                fps_val = float(num) / den_val if den_val else 0.0
+                            except Exception:
+                                fps_val = 0.0
+                        else:
+                            try:
+                                fps_val = float(fps_str)
+                            except Exception:
+                                fps_val = 0.0
+                    item.video_fps = fps_val
+                    total_frames = 0
+                    if nb_frames_str and str(nb_frames_str).isdigit():
+                        total_frames = int(nb_frames_str)
+                    elif item.video_duration > 0 and fps_val > 0:
+                        total_frames = int(item.video_duration * fps_val)
+                    if total_frames > 0:
+                        item.total_frames = total_frames
         except FileNotFoundError:
             # ffprobe не найден — не считаем это критической ошибкой, просто
             # отключаем прогресс по длительности для этого файла.
@@ -2962,6 +3549,12 @@ class MainWindow(QMainWindow):
         # Если мы остановили очередь через кнопку "Пауза",
         # то это НЕ ошибка файла — мы отменили обработку.
         if self.isPaused and self._pauseStopRequested:
+            # Удаляем недокодированный файл при паузе/отмене
+            try:
+                if item.output_file and os.path.exists(item.output_file):
+                    os.remove(item.output_file)
+            except Exception:
+                pass
             self.ui.runButton.setEnabled(True)
             if hasattr(self.ui, 'pauseResumeButton'):
                 self.ui.pauseResumeButton.setEnabled(True)
@@ -2973,11 +3566,19 @@ class MainWindow(QMainWindow):
         if exitCode == 0:
             item.status = QueueItem.STATUS_SUCCESS
             item.progress = 100
+            if getattr(item, "total_frames", 0):
+                item.processed_frames = item.total_frames
             self.ui.logDisplay.append(f"<br><b><font color='green'>✓ Файл обработан успешно: {os.path.basename(item.file_path)}</font></b>")
         else:
             item.status = QueueItem.STATUS_ERROR
             item.error_message = f"Код завершения: {exitCode}"
             self.ui.logDisplay.append(f"<br><b><font color='red'>✗ Ошибка обработки файла: {os.path.basename(item.file_path)} (код: {exitCode})</font></b>")
+            # Удаляем битый/частично созданный файл
+            try:
+                if item.output_file and os.path.exists(item.output_file):
+                    os.remove(item.output_file)
+            except Exception:
+                pass
         
         # Обновляем таблицу
         self.updateQueueTable()
@@ -3013,20 +3614,30 @@ class MainWindow(QMainWindow):
     
     def openOutputFolder(self):
         """Открывает папку с выходным файлом в проводнике/файловом менеджере"""
-        if not self.lastOutputFile:
+        target_file = ""
+        item = self.getSelectedQueueItem()
+        if item and item.output_file:
+            target_file = item.output_file
+        elif self.lastOutputFile:
+            target_file = self.lastOutputFile
+        if not target_file:
             QMessageBox.warning(self, "Ошибка", "Выходной файл не найден")
             return
-        
-        output_dir = os.path.dirname(self.lastOutputFile)
+        output_dir = os.path.dirname(target_file)
         if not os.path.exists(output_dir):
             QMessageBox.warning(self, "Ошибка", f"Папка не существует:\n{output_dir}")
             return
-        
-        # Открываем папку в зависимости от ОС
+
         if platform.system() == "Windows":
-            os.startfile(output_dir)
+            if os.path.exists(target_file):
+                os.system(f'explorer /select,"{target_file}"')
+            else:
+                os.startfile(output_dir)
         elif platform.system() == "Darwin":  # macOS
-            os.system(f'open "{output_dir}"')
+            if os.path.exists(target_file):
+                os.system(f'open -R "{target_file}"')
+            else:
+                os.system(f'open "{output_dir}"')
         else:  # Linux
             os.system(f'xdg-open "{output_dir}"')
 
@@ -3091,7 +3702,7 @@ class MainWindow(QMainWindow):
             return
 
         extra = self._getPresetExtraFromUI()
-        self.presetManager.savePreset(name, codec, resolution, container, desc.strip(), **extra)
+        self.presetManager.savePreset(name, codec, resolution, container, desc.strip(), insert_at_top=True, **extra)
         self.currentPresetName = name
         self.refreshPresetsTable()
 
@@ -3162,7 +3773,7 @@ class MainWindow(QMainWindow):
     def copyCommand(self):
         clipboard = QGuiApplication.clipboard()
         clipboard.setText(self.ui.commandDisplay.toPlainText())
-        QMessageBox.information(self, "Скопировано", "Команда скопирована в буфер обмена!")
+        # Убираем модальное сообщение — копирование тихое
 
     def _chooseDataType(self, title):
         """Выбор типа данных для импорта/экспорта."""
@@ -3338,13 +3949,13 @@ class MainWindow(QMainWindow):
         cmd = entry.get("command", "").strip()
         if not cmd:
             return
-        item.preset_name = "custom"
+        item.preset_name = f"cmd:{name}"
         item.command = cmd
         item.command_manually_edited = True
         item.last_generated_command = getattr(item, "last_generated_command", "") or ""
         self.commandManuallyEdited = True
         if hasattr(self.ui, "commandDisplay"):
-            self.ui.commandDisplay.setPlainText(cmd)
+            self._applyPathsToSavedCommand(item, update_display=True)
             self.ui.commandDisplay.setReadOnly(False)
         self.updateQueueTable()
         QMessageBox.information(self, "Загружено", f"Команда «{name}» применена к выбранному файлу. При кодировании будут подставлены пути этого файла.")
