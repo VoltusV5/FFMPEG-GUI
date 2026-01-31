@@ -20,6 +20,7 @@ class QueueItem:
         self.output_file = ""        # Путь к выходному файлу
         self.error_message = ""      # Сообщение об ошибке (если есть)
         self.output_renamed = False  # True, если выходной путь был изменён из-за существующего файла
+        self.output_chosen_by_user = False  # True, если путь выбран вручную — не добавлять _1 при существующем файле
 
         # Обрезка / склейка: области (start_sec, end_sec), которые остаются в финальном видео
         self.keep_segments = []      # [(start, end), ...] в секундах

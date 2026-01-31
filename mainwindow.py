@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDial
                                QSpinBox, QComboBox, QCheckBox, QLineEdit, QScrollArea, QFrame,
                                QGridLayout)
 from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
-from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont
+from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont, QCloseEvent
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
@@ -74,6 +74,12 @@ class TrimSegmentBar(QWidget):
                 r = min(radius, seg_w // 2, h // 2)
                 painter.setBrush(QColor(0x4a, 0x9e, 0xff))
                 painter.drawRoundedRect(QRectF(x1, 0, seg_w, h), r, r)
+        # Пометка «In»: если задано только начало промежутка — вертикальная черта или тонкий сегмент до конца
+        elif self.trim_start_sec is not None:
+            x_in = int(w * self.trim_start_sec / self.duration_sec)
+            x_in = max(0, min(x_in, w))
+            painter.setBrush(QColor(0x4a, 0x9e, 0xff))
+            painter.drawRect(x_in, 0, max(2, min(6, w // 100)), h)
         painter.end()
 
 
@@ -85,10 +91,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("OpenFF GUI - MVP")
         self.resize(1425, 900)
         # Переопределяем стили под тёмную тему (ui_mainwindow генерируется из .ui)
+        self._runButtonStyleStart = (
+            "background-color: #2e7d32; color: white; font-weight: bold; padding: 8px; border: 1px solid #1b5e20;"
+        )
+        self._runButtonStyleAbort = (
+            "background-color: #c62828; color: white; font-weight: bold; padding: 8px; border: 1px solid #b71c1c;"
+        )
         if hasattr(self.ui, 'runButton'):
-            self.ui.runButton.setStyleSheet(
-                "background-color: #2e7d32; color: white; font-weight: bold; padding: 8px; border: 1px solid #1b5e20;"
-            )
+            self.ui.runButton.setStyleSheet(self._runButtonStyleStart)
         if hasattr(self.ui, 'videoPreviewWidget'):
             self.ui.videoPreviewWidget.setStyleSheet("border: 1px solid #505050; background-color: #000000;")
         if hasattr(self.ui, 'commandDisplay'):
@@ -179,9 +189,10 @@ class MainWindow(QMainWindow):
         # Переменные для общего прогресса очереди
         self.totalQueueProgress = 0
 
-        # Флаги управления остановкой очереди через кнопку "Пауза"
-        # (по ТЗ: пауза = отменить текущий файл и все следующие, затем возобновить с текущего)
+        # Флаги управления остановкой очереди через кнопку "Пауза" / "Завершить кодирование"
         self._pauseStopRequested = False
+        self._abortRequested = False  # нажата "Завершить кодирование" — сброс очереди в ожидание
+        self._closingApp = False  # закрытие окна во время кодирования — не обрабатывать processFinished
         self.pausedQueueIndex = -1
         
         # Инициализация медиаплеера для предпросмотра
@@ -237,7 +248,7 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'commandDisplay'):
             self.ui.commandDisplay.textChanged.connect(self.onCommandManuallyEdited)
         if hasattr(self.ui, 'runButton'):
-            self.ui.runButton.clicked.connect(self.startQueueProcessing)
+            self.ui.runButton.clicked.connect(self.onRunButtonClicked)
         if hasattr(self.ui, 'copyCmdButton'):
             self.ui.copyCmdButton.clicked.connect(self.copyCommand)
             self.ui.copyCmdButton.setToolTip("Копировать текущую команду FFmpeg в буфер обмена.")
@@ -318,6 +329,32 @@ class MainWindow(QMainWindow):
 
         # Лог выполнения всегда виден (кнопка отключена)
         self.isLogVisible = True
+
+    def closeEvent(self, event: QCloseEvent):
+        """При закрытии во время кодирования — предупреждение и удаление битого файла при подтверждении."""
+        if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
+            reply = QMessageBox.question(
+                self,
+                "Завершить программу?",
+                "У вас ещё перекодируются файлы. Вы уверены, что хотите завершить программу?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self._closingApp = True
+                if self.ffmpegProcess.state() == QProcess.Running:
+                    self.ffmpegProcess.kill()
+                item = self.queue[self.currentQueueIndex]
+                try:
+                    if item.output_file and os.path.exists(item.output_file):
+                        os.remove(item.output_file)
+                except Exception:
+                    pass
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
 
     def initQueue(self):
         """Инициализирует таблицу очереди"""
@@ -1152,10 +1189,26 @@ class MainWindow(QMainWindow):
         if self.selectedQueueIndex < 0 or self.selectedQueueIndex >= len(self.queue):
             return
         
-        # Не удаляем файл, который сейчас обрабатывается
-        if self.selectedQueueIndex == self.currentQueueIndex:
-            QMessageBox.warning(self, "Предупреждение", "Нельзя удалить файл, который сейчас обрабатывается")
+        # Во время кодирования (без паузы) удалять нельзя
+        if self.currentQueueIndex >= 0 and not self.isPaused:
+            QMessageBox.warning(
+                self,
+                "Предупреждение",
+                "Нельзя удалять файлы из очереди во время кодирования.\n"
+                "Нажмите «Пауза» или «Завершить кодирование»."
+            )
             return
+        
+        # При паузе нельзя удалять уже перекодированный файл
+        if self.currentQueueIndex >= 0 and self.isPaused:
+            item = self.queue[self.selectedQueueIndex]
+            if item.status == QueueItem.STATUS_SUCCESS:
+                QMessageBox.warning(
+                    self,
+                    "Предупреждение",
+                    "Нельзя удалить перекодированный файл до завершения кодирования всей очереди."
+                )
+                return
         
         removed_index = self.selectedQueueIndex
 
@@ -1240,6 +1293,7 @@ class MainWindow(QMainWindow):
                 preset_text = f"cmd + {preset_text[4:]}"
             preset_item = QTableWidgetItem(preset_text)
             preset_item.setFlags(preset_item.flags() & ~Qt.ItemIsEditable)
+            preset_item.setToolTip(preset_text)  # полное название в подсказке при наведении
             table.setItem(row, 2, preset_item)
 
             # Столбец 3: Статус
@@ -1295,8 +1349,12 @@ class MainWindow(QMainWindow):
         if not item.output_file:
             self._generateOutputFileForItem(item)
         
-        # Сбрасываем длительность до загрузки нового видео, чтобы полоска обрезки не показывала масштаб прошлого
+        # Сбрасываем длительность до загрузки нового видео
         self.videoDuration = 0
+        # Получаем длительность через ffprobe, чтобы полоска обрезки отображалась сразу при переключении файла
+        self._getVideoDurationForItem(item)
+        if getattr(item, "video_duration", 0) > 0:
+            self.videoDuration = item.video_duration
         # Загружаем видео
         self.loadVideoForPreview()
 
@@ -1406,6 +1464,7 @@ class MainWindow(QMainWindow):
         if file_path:
             # Сохраняем выбранный путь (расширение будет добавлено при генерации команды)
             item.output_file = file_path
+            item.output_chosen_by_user = True
             # Обновляем таблицу
             self.updateQueueTable()
 
@@ -2197,11 +2256,11 @@ class MainWindow(QMainWindow):
             container_ext = container
 
         if item.output_file:
-            # Пользователь выбрал файл через проводник - берем базовое имя и добавляем расширение из пресета
+            # Берём базовое имя и расширение из пресета
             output_base = os.path.splitext(item.output_file)[0]
             final_output = output_base + "." + container_ext
             final_output = os.path.normpath(final_output)
-            # Если файл уже существует — подбираем уникальное имя и помечаем как переименованный
+            # Если файл уже существует — добавляем уникальный суффикс (_1, _2, …), чтобы не было запроса перезаписи
             item.output_renamed = False
             if os.path.exists(final_output):
                 counter = 1
@@ -2333,9 +2392,15 @@ class MainWindow(QMainWindow):
         elif len(segments) > 1:
             filter_complex, _ = self._buildTrimConcatFilter(segments, scale)
             codec_display = codec if codec not in ("default", "current", "") else "libx264"
+            # Аудио из filter_complex нельзя копировать — только перекодирование
+            audio_for_filter = ["-c:a", "aac"]
+            if getattr(item, "audio_bitrate", 0) > 0:
+                audio_for_filter += ["-b:a", str(item.audio_bitrate) + "k"]
+            if getattr(item, "sample_rate", 0) > 0:
+                audio_for_filter += ["-ar", str(item.sample_rate)]
             cmd_parts += ["-i", self._quotePath(input_file_normalized), "-filter_complex", f'"{filter_complex}"', "-map", "[v]", "-map", "[outa]", "-c:v", codec_display]
             cmd_parts += video_extra
-            cmd_parts += audio_args
+            cmd_parts += audio_for_filter
             if apply_tag_hvc1:
                 cmd_parts += ["-tag:v", "hvc1"]
             if extra_args:
@@ -2387,6 +2452,7 @@ class MainWindow(QMainWindow):
         
         final_output = os.path.normpath(final_output)
         queue_item.output_file = final_output
+        queue_item.output_chosen_by_user = False
     
     def _getFFmpegArgs(self, queue_item=None):
         """Возвращает список аргументов для запуска FFmpeg для указанного элемента очереди"""
@@ -2410,10 +2476,11 @@ class MainWindow(QMainWindow):
             container_ext = container
 
         if queue_item.output_file:
-            # Пользователь выбрал файл - берем базовое имя и добавляем расширение из пресета
+            # Берём базовое имя и расширение из пресета
             output_base = os.path.splitext(queue_item.output_file)[0]
             final_output = output_base + "." + container_ext
             final_output = os.path.normpath(final_output)
+            # Если файл уже существует — всегда добавляем уникальный суффикс (_1, _2, …), чтобы не было запроса перезаписи в FFmpeg
             queue_item.output_renamed = False
             if os.path.exists(final_output):
                 counter = 1
@@ -2543,9 +2610,15 @@ class MainWindow(QMainWindow):
         elif len(segments) > 1:
             filter_complex, map_v = self._buildTrimConcatFilter(segments, scale)
             codec_val = (queue_item.codec or "libx264") if (queue_item.codec and queue_item.codec not in ("default", "current", "")) else "libx264"
+            # Аудио из filter_complex нельзя копировать — только перекодирование (aac и т.д.)
+            audio_args_filter = ["-c:a", "aac"]
+            if getattr(queue_item, "audio_bitrate", 0) > 0:
+                audio_args_filter += ["-b:a", str(queue_item.audio_bitrate) + "k"]
+            if getattr(queue_item, "sample_rate", 0) > 0:
+                audio_args_filter += ["-ar", str(queue_item.sample_rate)]
             args = probe_args + ["-i", input_file_normalized, "-filter_complex", filter_complex, "-map", map_v, "-map", "[outa]", "-c:v", codec_val]
             args += video_extra
-            args += audio_args
+            args += audio_args_filter
             if apply_tag_hvc1:
                 args += ["-tag:v", "hvc1"]
             if extra_args:
@@ -2563,6 +2636,9 @@ class MainWindow(QMainWindow):
                 args += extra_args
             args.append(final_output)
 
+        # При выборе выходного файла пользователем — перезаписывать без запроса (-y)
+        if getattr(queue_item, "output_chosen_by_user", False):
+            args = ["-y"] + args
         return args
 
     def _getTrimSegments(self, queue_item):
@@ -2586,6 +2662,57 @@ class MainWindow(QMainWindow):
             parts.append(f"[outv]{scale_filter}[v]")
             return ";".join(parts), "[v]"
         return ";".join(parts), "[outv]"
+
+    def onRunButtonClicked(self):
+        """Запуск кодирования или завершение (сброс очереди)."""
+        if self.currentQueueIndex >= 0:
+            reply = QMessageBox.question(
+                self,
+                "Завершить кодирование?",
+                "Вы уверены, что хотите завершить кодирование?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+            # Идёт кодирование или пауза — прервать и сбросить очередь в ожидание
+            self._abortRequested = True
+            if self.ffmpegProcess.state() == QProcess.Running:
+                self.ffmpegProcess.kill()
+            else:
+                # Уже на паузе — сбросить состояние без ожидания processFinished
+                self._applyAbortReset()
+            return
+        self.startQueueProcessing()
+
+    def _applyAbortReset(self):
+        """Сброс очереди в изначальное состояние после «Завершить кодирование» или по флагу _abortRequested."""
+        self._abortRequested = False
+        if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
+            item = self.queue[self.currentQueueIndex]
+            try:
+                if item.output_file and os.path.exists(item.output_file):
+                    os.remove(item.output_file)
+            except Exception:
+                pass
+        for it in self.queue:
+            it.status = QueueItem.STATUS_WAITING
+            it.progress = 0
+            it.error_message = ""
+        self.currentQueueIndex = -1
+        self.isPaused = False
+        self._pauseStopRequested = False
+        self.pausedQueueIndex = -1
+        if hasattr(self.ui, 'runButton'):
+            self.ui.runButton.setText("Запустить кодирование")
+            self.ui.runButton.setStyleSheet(getattr(self, '_runButtonStyleStart', self._runButtonStyleStart))
+            self.ui.runButton.setEnabled(True)
+        if hasattr(self.ui, 'pauseResumeButton'):
+            self.ui.pauseResumeButton.setEnabled(False)
+            self.ui.pauseResumeButton.setText("Пауза")
+        self.updateQueueTable()
+        self.updateTotalQueueProgress()
+        self.updateStatus("Кодирование прервано. Можно удалять файлы из очереди.")
 
     def startQueueProcessing(self):
         """Начинает обработку очереди файлов"""
@@ -2628,6 +2755,10 @@ class MainWindow(QMainWindow):
         if self.currentQueueIndex < 0 or self.currentQueueIndex >= len(self.queue):
             # Очередь закончена
             self.currentQueueIndex = -1
+            if hasattr(self.ui, 'runButton'):
+                self.ui.runButton.setText("Запустить кодирование")
+                self.ui.runButton.setStyleSheet(getattr(self, '_runButtonStyleStart', self._runButtonStyleStart))
+                self.ui.runButton.setEnabled(True)
             self.updateStatus("Все файлы обработаны")
             QMessageBox.information(self, "Готово", "Обработка всех файлов завершена!")
             return
@@ -2669,6 +2800,9 @@ class MainWindow(QMainWindow):
             self.processNextInQueue()
             return
         
+        # Обновить таблицу (итоговый путь мог получить суффикс _1, _2 — кнопка «Открыть» откроет правильный файл)
+        self.updateQueueTable()
+        
         # Проверяем входной файл
         if not os.path.exists(item.file_path):
             QMessageBox.critical(self, "Ошибка", f"Файл не существует:\n{item.file_path}")
@@ -2681,8 +2815,11 @@ class MainWindow(QMainWindow):
         # Очищаем лог для нового файла
         self.ui.logDisplay.append(f"<br><b>=== Обработка файла {self.currentQueueIndex + 1}: {os.path.basename(item.file_path)} ===</b><br>")
         
-        # Запускаем кодирование
-        self.ui.runButton.setEnabled(False)
+        # Запускаем кодирование (кнопка «Завершить кодирование» остаётся активной — можно прервать без паузы)
+        if hasattr(self.ui, 'runButton'):
+            self.ui.runButton.setText("Завершить кодирование")
+            self.ui.runButton.setStyleSheet(getattr(self, '_runButtonStyleAbort', self._runButtonStyleAbort))
+            self.ui.runButton.setEnabled(True)
         if hasattr(self.ui, 'pauseResumeButton'):
             self.ui.pauseResumeButton.setEnabled(True)
             self.ui.pauseResumeButton.setText("Пауза")
@@ -3141,6 +3278,8 @@ class MainWindow(QMainWindow):
             return
         item.trim_end_sec = self.mediaPlayer.position() / 1000.0
         self._updateTrimSegmentBar()
+        # Сразу обновить команду FFmpeg в интерфейсе
+        self.updateCommandFromGUI()
 
     def addKeepArea(self):
         """Добавить текущую область (in–out) в список областей склейки"""
@@ -3541,7 +3680,14 @@ class MainWindow(QMainWindow):
             print(f"Не удалось получить длительность видео: {e}")
     
     def processFinished(self, exitCode, exitStatus):
+        if getattr(self, '_closingApp', False):
+            return
         if self.currentQueueIndex < 0 or self.currentQueueIndex >= len(self.queue):
+            return
+        
+        # «Завершить кодирование» — сброс очереди в ожидание
+        if getattr(self, '_abortRequested', False):
+            self._applyAbortReset()
             return
         
         item = self.queue[self.currentQueueIndex]
@@ -3603,7 +3749,10 @@ class MainWindow(QMainWindow):
         else:
             # Все файлы обработаны
             self.currentQueueIndex = -1
-            self.ui.runButton.setEnabled(True)
+            if hasattr(self.ui, 'runButton'):
+                self.ui.runButton.setText("Запустить кодирование")
+                self.ui.runButton.setStyleSheet(getattr(self, '_runButtonStyleStart', self._runButtonStyleStart))
+                self.ui.runButton.setEnabled(True)
             self.updateStatus("Все файлы обработаны")
             if hasattr(self.ui, 'openOutputFolderButton'):
                 self.ui.openOutputFolderButton.setEnabled(True)
