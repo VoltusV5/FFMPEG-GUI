@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDial
                                QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
                                QStyleOptionSlider, QStyle, QMenu, QHBoxLayout, QLabel,
                                QSpinBox, QComboBox, QCheckBox, QLineEdit, QScrollArea, QFrame,
-                               QGridLayout)
+                               QGridLayout, QTabWidget, QSizePolicy)
 from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
 from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont, QCloseEvent
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self.setWindowTitle("OpenFF GUI - MVP")
-        self.resize(1425, 900)
+        self.resize(1425, 970)
         # Переопределяем стили под тёмную тему (ui_mainwindow генерируется из .ui)
         self._runButtonStyleStart = (
             "background-color: #2e7d32; color: white; font-weight: bold; padding: 8px; border: 1px solid #1b5e20;"
@@ -330,8 +330,479 @@ class MainWindow(QMainWindow):
         # Лог выполнения всегда виден (кнопка отключена)
         self.isLogVisible = True
 
+        # Вкладки: очередь кодирования, «Видео в аудио», «Аудио конвертер»
+        self._tabWidget = QTabWidget()
+        self._tabWidget.addTab(self.ui.centralwidget, "Очередь кодирования")
+        self._videoToAudioWidget = self._createVideoToAudioPage()
+        self._tabWidget.addTab(self._videoToAudioWidget, "Видео в аудио")
+        self._audioConverterWidget = self._createAudioConverterPage()
+        self._tabWidget.addTab(self._audioConverterWidget, "Аудио конвертер")
+        self.setCentralWidget(self._tabWidget)
+
+    def _createVideoToAudioPage(self):
+        """Создаёт страницу «Перекодировать видео в аудио» — один файл, без очереди."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setSpacing(12)
+
+        title = QLabel("Перекодировать видео в аудио")
+        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(title)
+
+        # Входной файл
+        input_row = QHBoxLayout()
+        input_row.addWidget(QLabel("Входной файл:"))
+        self._v2aInputEdit = QLineEdit()
+        self._v2aInputEdit.setReadOnly(True)
+        self._v2aInputEdit.setPlaceholderText("Выберите видеофайл...")
+        input_row.addWidget(self._v2aInputEdit)
+        btn_browse = QPushButton("Обзор...")
+        btn_browse.clicked.connect(self._v2aBrowseInput)
+        input_row.addWidget(btn_browse)
+        layout.addLayout(input_row)
+
+        # Выходной файл (будет сохранён как...)
+        out_row = QHBoxLayout()
+        out_row.addWidget(QLabel("Выходной файл:"))
+        self._v2aOutputEdit = QLineEdit()
+        self._v2aOutputEdit.setReadOnly(True)
+        self._v2aOutputEdit.setPlaceholderText("—")
+        out_row.addWidget(self._v2aOutputEdit)
+        layout.addLayout(out_row)
+
+        # Формат: mp3, wav, m4a, flac, ogg
+        format_row = QHBoxLayout()
+        format_row.addWidget(QLabel("Формат:"))
+        self._v2aFormatGroup = QButtonGroup(page)
+        for name, ext in [("MP3", "mp3"), ("WAV", "wav"), ("M4A", "m4a"), ("FLAC", "flac"), ("OGG", "ogg")]:
+            btn = QPushButton(name)
+            btn.setCheckable(True)
+            self._v2aFormatGroup.addButton(btn)
+            format_row.addWidget(btn)
+        self._v2aFormatGroup.buttons()[0].setChecked(True)  # MP3 по умолчанию
+        self._v2aFormatGroup.buttonClicked.connect(lambda: self._v2aUpdateOutputPath())
+        layout.addLayout(format_row)
+
+        # Качество: текущего файла / 64 / 128 / 192 / 320 kbps
+        quality_row = QHBoxLayout()
+        quality_row.addWidget(QLabel("Качество:"))
+        self._v2aQualityGroup = QButtonGroup(page)
+        for text, val in [
+            ("Текущего файла", "copy"),
+            ("64 kbps", "64"),
+            ("128 kbps", "128"),
+            ("192 kbps", "192"),
+            ("320 kbps", "320"),
+        ]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setProperty("v2a_quality", val)
+            self._v2aQualityGroup.addButton(btn)
+            quality_row.addWidget(btn)
+        self._v2aQualityGroup.buttons()[0].setChecked(True)
+        self._v2aQualityGroup.buttonClicked.connect(lambda: self._v2aUpdateOutputPath())
+        layout.addLayout(quality_row)
+
+        # Прогресс конвертации
+        self._v2aProgressBar = QProgressBar()
+        self._v2aProgressBar.setVisible(False)
+        layout.addWidget(self._v2aProgressBar)
+
+        # Кнопки Конвертировать и Открыть в папке
+        btn_row = QHBoxLayout()
+        self._v2aConvertBtn = QPushButton("Конвертировать")
+        self._v2aConvertBtn.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold; padding: 8px;")
+        self._v2aConvertBtn.clicked.connect(self._v2aConvert)
+        btn_row.addWidget(self._v2aConvertBtn)
+        self._v2aOpenFolderBtn = QPushButton("Открыть в папке")
+        self._v2aOpenFolderBtn.setEnabled(False)
+        self._v2aOpenFolderBtn.clicked.connect(self._v2aOpenFolder)
+        btn_row.addWidget(self._v2aOpenFolderBtn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self._v2aLastOutputPath = ""
+        self._v2aProcess = QProcess(self)
+        self._v2aProcess.finished.connect(self._v2aProcessFinished)
+        self._v2aProcess.readyReadStandardError.connect(self._v2aReadProcessOutput)
+        self._v2aProcess.readyReadStandardOutput.connect(self._v2aReadProcessOutput)
+
+        layout.addStretch()
+        return page
+
+    def _v2aGetFormat(self):
+        btn = self._v2aFormatGroup.checkedButton()
+        if not btn:
+            return "mp3"
+        text = btn.text().lower()
+        return {"mp3": "mp3", "wav": "wav", "m4a": "m4a", "flac": "flac", "ogg": "ogg"}.get(text, "mp3")
+
+    def _v2aGetQuality(self):
+        btn = self._v2aQualityGroup.checkedButton()
+        if not btn:
+            return "copy"
+        return btn.property("v2a_quality") or "copy"
+
+    def _v2aBrowseInput(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите видеофайл",
+            "",
+            "Видео (*.mp4 *.mkv *.avi *.mov *.flv *.wmv *.webm)"
+        )
+        if path:
+            self._v2aInputEdit.setText(path)
+            self._v2aUpdateOutputPath()
+            self._v2aOpenFolderBtn.setEnabled(False)
+            self._v2aProgressBar.setVisible(False)
+
+    def _v2aUpdateOutputPath(self):
+        inp = self._v2aInputEdit.text().strip()
+        if not inp or not os.path.isfile(inp):
+            self._v2aOutputEdit.setText("")
+            return
+        ext = self._v2aGetFormat()
+        base = os.path.splitext(os.path.basename(inp))[0]
+        dir_path = os.path.dirname(inp)
+        out_path = os.path.join(dir_path, base + "." + ext)
+        out_path = os.path.normpath(out_path)
+        counter = 0
+        while os.path.exists(out_path):
+            counter += 1
+            out_path = os.path.join(dir_path, f"{base} ({counter})." + ext)
+            out_path = os.path.normpath(out_path)
+        self._v2aOutputEdit.setText(out_path)
+
+    def _v2aConvert(self):
+        inp = self._v2aInputEdit.text().strip()
+        if not inp or not os.path.isfile(inp):
+            QMessageBox.warning(self, "Видео в аудио", "Выберите входной видеофайл.")
+            return
+        out = self._v2aOutputEdit.text().strip()
+        if not out:
+            self._v2aUpdateOutputPath()
+            out = self._v2aOutputEdit.text().strip()
+        if not out:
+            QMessageBox.warning(self, "Видео в аудио", "Не удалось определить выходной файл.")
+            return
+        fmt = self._v2aGetFormat()
+        quality = self._v2aGetQuality()
+
+        codec_map = {
+            "mp3": "libmp3lame",
+            "wav": "pcm_s16le",
+            "m4a": "aac",
+            "flac": "flac",
+            "ogg": "libvorbis",
+        }
+        codec = codec_map.get(fmt, "libmp3lame")
+        args = ["-y", "-i", os.path.normpath(inp), "-vn", "-c:a", codec]
+        if quality != "copy":
+            args.extend(["-b:a", quality + "k"])
+        args.append(os.path.normpath(out))
+
+        self._v2aConvertBtn.setEnabled(False)
+        self._v2aLastOutputPath = out
+        self._v2aProgressBar.setVisible(True)
+        self._v2aProgressBar.setRange(0, 0)  # индикатор «в процессе»
+        self._v2aProcess.start("ffmpeg", args)
+
+    def _v2aReadProcessOutput(self):
+        proc = getattr(self, "_v2aProcess", None)
+        if proc and proc == self.sender():
+            data = proc.readAllStandardError().data() + proc.readAllStandardOutput().data()
+            if data:
+                pass  # не выводим команду/лог по запросу
+
+    def _v2aProcessFinished(self, exitCode, exitStatus):
+        self._v2aConvertBtn.setEnabled(True)
+        self._v2aProgressBar.setRange(0, 100)
+        self._v2aProgressBar.setValue(100 if exitCode == 0 else 0)
+        if exitCode == 0:
+            self._v2aOpenFolderBtn.setEnabled(True)
+            QMessageBox.information(self, "Видео в аудио", "Конвертация завершена.")
+        else:
+            self._v2aOpenFolderBtn.setEnabled(False)
+            try:
+                if self._v2aLastOutputPath and os.path.exists(self._v2aLastOutputPath):
+                    os.remove(self._v2aLastOutputPath)
+            except Exception:
+                pass
+            QMessageBox.warning(self, "Видео в аудио", "Ошибка конвертации.")
+
+    def _v2aOpenFolder(self):
+        path = getattr(self, "_v2aLastOutputPath", "") or self._v2aOutputEdit.text().strip()
+        if not path:
+            QMessageBox.warning(self, "Видео в аудио", "Нет выходного файла.")
+            return
+        out_dir = os.path.dirname(path)
+        if not os.path.isdir(out_dir):
+            QMessageBox.warning(self, "Видео в аудио", "Папка не найдена.")
+            return
+        if platform.system() == "Windows":
+            if os.path.exists(path):
+                os.system(f'explorer /select,"{path}"')
+            else:
+                os.startfile(out_dir)
+        elif platform.system() == "Darwin":
+            if os.path.exists(path):
+                os.system(f'open -R "{path}"')
+            else:
+                os.system(f'open "{out_dir}"')
+        else:
+            os.system(f'xdg-open "{out_dir}"')
+
+    def _createAudioConverterPage(self):
+        """Страница «Аудио конвертер»: аудио → аудио, один файл, без очереди."""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setSpacing(12)
+
+        title = QLabel("Аудио конвертер")
+        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(title)
+
+        input_row = QHBoxLayout()
+        input_row.addWidget(QLabel("Входной файл:"))
+        self._a2aInputEdit = QLineEdit()
+        self._a2aInputEdit.setReadOnly(True)
+        self._a2aInputEdit.setPlaceholderText("Выберите аудиофайл...")
+        input_row.addWidget(self._a2aInputEdit)
+        btn_browse = QPushButton("Обзор...")
+        btn_browse.clicked.connect(self._a2aBrowseInput)
+        input_row.addWidget(btn_browse)
+        layout.addLayout(input_row)
+
+        out_row = QHBoxLayout()
+        out_row.addWidget(QLabel("Выходной файл:"))
+        self._a2aOutputEdit = QLineEdit()
+        self._a2aOutputEdit.setReadOnly(True)
+        self._a2aOutputEdit.setPlaceholderText("—")
+        out_row.addWidget(self._a2aOutputEdit)
+        layout.addLayout(out_row)
+
+        format_row = QHBoxLayout()
+        format_row.addWidget(QLabel("Формат:"))
+        self._a2aFormatGroup = QButtonGroup(page)
+        for name, ext in [("MP3", "mp3"), ("WAV", "wav"), ("M4A", "m4a"), ("FLAC", "flac"), ("OGG", "ogg")]:
+            btn = QPushButton(name)
+            btn.setCheckable(True)
+            self._a2aFormatGroup.addButton(btn)
+            format_row.addWidget(btn)
+        self._a2aFormatGroup.buttons()[0].setChecked(True)
+        self._a2aFormatGroup.buttonClicked.connect(lambda: self._a2aUpdateOutputPath())
+        layout.addLayout(format_row)
+
+        quality_row = QHBoxLayout()
+        quality_row.addWidget(QLabel("Качество:"))
+        self._a2aQualityGroup = QButtonGroup(page)
+        for text, val in [
+            ("Текущего файла", "copy"),
+            ("64 kbps", "64"),
+            ("128 kbps", "128"),
+            ("192 kbps", "192"),
+            ("320 kbps", "320"),
+        ]:
+            btn = QPushButton(text)
+            btn.setCheckable(True)
+            btn.setProperty("a2a_quality", val)
+            self._a2aQualityGroup.addButton(btn)
+            quality_row.addWidget(btn)
+        self._a2aQualityGroup.buttons()[0].setChecked(True)
+        self._a2aQualityGroup.buttonClicked.connect(lambda: self._a2aUpdateOutputPath())
+        layout.addLayout(quality_row)
+
+        self._a2aProgressBar = QProgressBar()
+        self._a2aProgressBar.setVisible(False)
+        layout.addWidget(self._a2aProgressBar)
+
+        btn_row = QHBoxLayout()
+        self._a2aConvertBtn = QPushButton("Конвертировать")
+        self._a2aConvertBtn.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold; padding: 8px;")
+        self._a2aConvertBtn.clicked.connect(self._a2aConvert)
+        btn_row.addWidget(self._a2aConvertBtn)
+        self._a2aOpenFolderBtn = QPushButton("Открыть в папке")
+        self._a2aOpenFolderBtn.setToolTip("Открыть папку с выходным файлом.")
+        self._a2aOpenFolderBtn.setEnabled(False)
+        self._a2aOpenFolderBtn.clicked.connect(self._a2aOpenFolder)
+        btn_row.addWidget(self._a2aOpenFolderBtn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        self._a2aLastOutputPath = ""
+        self._a2aProcess = QProcess(self)
+        self._a2aProcess.finished.connect(self._a2aProcessFinished)
+        self._a2aProcess.readyReadStandardError.connect(self._a2aReadProcessOutput)
+        self._a2aProcess.readyReadStandardOutput.connect(self._a2aReadProcessOutput)
+
+        layout.addStretch()
+        return page
+
+    def _a2aGetFormat(self):
+        btn = self._a2aFormatGroup.checkedButton()
+        if not btn:
+            return "mp3"
+        text = btn.text().lower()
+        return {"mp3": "mp3", "wav": "wav", "m4a": "m4a", "flac": "flac", "ogg": "ogg"}.get(text, "mp3")
+
+    def _a2aGetQuality(self):
+        btn = self._a2aQualityGroup.checkedButton()
+        if not btn:
+            return "copy"
+        return btn.property("a2a_quality") or "copy"
+
+    def _a2aBrowseInput(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите аудиофайл",
+            "",
+            "Аудио (*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma *.opus);;Все файлы (*.*)"
+        )
+        if path:
+            self._a2aInputEdit.setText(path)
+            self._a2aUpdateOutputPath()
+            self._a2aOpenFolderBtn.setEnabled(False)
+            self._a2aProgressBar.setVisible(False)
+
+    def _a2aUpdateOutputPath(self):
+        inp = self._a2aInputEdit.text().strip()
+        if not inp or not os.path.isfile(inp):
+            self._a2aOutputEdit.setText("")
+            return
+        ext = self._a2aGetFormat()
+        base = os.path.splitext(os.path.basename(inp))[0]
+        dir_path = os.path.dirname(inp)
+        out_path = os.path.join(dir_path, base + "." + ext)
+        out_path = os.path.normpath(out_path)
+        counter = 0
+        while os.path.exists(out_path):
+            counter += 1
+            out_path = os.path.join(dir_path, f"{base} ({counter})." + ext)
+            out_path = os.path.normpath(out_path)
+        self._a2aOutputEdit.setText(out_path)
+
+    def _a2aConvert(self):
+        inp = self._a2aInputEdit.text().strip()
+        if not inp or not os.path.isfile(inp):
+            QMessageBox.warning(self, "Аудио конвертер", "Выберите входной аудиофайл.")
+            return
+        out = self._a2aOutputEdit.text().strip()
+        if not out:
+            self._a2aUpdateOutputPath()
+            out = self._a2aOutputEdit.text().strip()
+        if not out:
+            QMessageBox.warning(self, "Аудио конвертер", "Не удалось определить выходной файл.")
+            return
+        fmt = self._a2aGetFormat()
+        quality = self._a2aGetQuality()
+        codec_map = {
+            "mp3": "libmp3lame",
+            "wav": "pcm_s16le",
+            "m4a": "aac",
+            "flac": "flac",
+            "ogg": "libvorbis",
+        }
+        codec = codec_map.get(fmt, "libmp3lame")
+        args = ["-y", "-i", os.path.normpath(inp), "-vn", "-c:a", codec]
+        if quality != "copy":
+            args.extend(["-b:a", quality + "k"])
+        args.append(os.path.normpath(out))
+
+        self._a2aConvertBtn.setEnabled(False)
+        self._a2aLastOutputPath = out
+        self._a2aProgressBar.setVisible(True)
+        self._a2aProgressBar.setRange(0, 0)
+        self._a2aProcess.start("ffmpeg", args)
+
+    def _a2aReadProcessOutput(self):
+        proc = getattr(self, "_a2aProcess", None)
+        if proc and proc == self.sender():
+            data = proc.readAllStandardError().data() + proc.readAllStandardOutput().data()
+            if data:
+                pass
+
+    def _a2aProcessFinished(self, exitCode, exitStatus):
+        self._a2aConvertBtn.setEnabled(True)
+        self._a2aProgressBar.setRange(0, 100)
+        self._a2aProgressBar.setValue(100 if exitCode == 0 else 0)
+        if exitCode == 0:
+            self._a2aOpenFolderBtn.setEnabled(True)
+            QMessageBox.information(self, "Аудио конвертер", "Конвертация завершена.")
+        else:
+            self._a2aOpenFolderBtn.setEnabled(False)
+            try:
+                if self._a2aLastOutputPath and os.path.exists(self._a2aLastOutputPath):
+                    os.remove(self._a2aLastOutputPath)
+            except Exception:
+                pass
+            QMessageBox.warning(self, "Аудио конвертер", "Ошибка конвертации.")
+
+    def _a2aOpenFolder(self):
+        path = getattr(self, "_a2aLastOutputPath", "") or self._a2aOutputEdit.text().strip()
+        if not path:
+            QMessageBox.warning(self, "Аудио конвертер", "Нет выходного файла.")
+            return
+        out_dir = os.path.dirname(path)
+        if not os.path.isdir(out_dir):
+            QMessageBox.warning(self, "Аудио конвертер", "Папка не найдена.")
+            return
+        if platform.system() == "Windows":
+            if os.path.exists(path):
+                os.system(f'explorer /select,"{path}"')
+            else:
+                os.startfile(out_dir)
+        elif platform.system() == "Darwin":
+            if os.path.exists(path):
+                os.system(f'open -R "{path}"')
+            else:
+                os.system(f'open "{out_dir}"')
+        else:
+            os.system(f'xdg-open "{out_dir}"')
+
     def closeEvent(self, event: QCloseEvent):
         """При закрытии во время кодирования — предупреждение и удаление битого файла при подтверждении."""
+        v2a = getattr(self, "_v2aProcess", None)
+        if v2a and v2a.state() != QProcess.NotRunning:
+            reply = QMessageBox.question(
+                self,
+                "Завершить программу?",
+                "Идёт конвертация «Видео в аудио». Вы уверены, что хотите завершить программу?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                v2a.kill()
+                path = getattr(self, "_v2aLastOutputPath", "")
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                event.accept()
+            else:
+                event.ignore()
+            return
+        a2a = getattr(self, "_a2aProcess", None)
+        if a2a and a2a.state() != QProcess.NotRunning:
+            reply = QMessageBox.question(
+                self,
+                "Завершить программу?",
+                "Идёт конвертация «Аудио конвертер». Вы уверены, что хотите завершить программу?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                a2a.kill()
+                path = getattr(self, "_a2aLastOutputPath", "")
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except Exception:
+                        pass
+                event.accept()
+            else:
+                event.ignore()
+            return
         if self.currentQueueIndex >= 0 and self.currentQueueIndex < len(self.queue):
             reply = QMessageBox.question(
                 self,
@@ -946,19 +1417,36 @@ class MainWindow(QMainWindow):
         self._spinSelectAllOnFocus.add(self._bitrateSpin)
         self._bitrateSpin.installEventFilter(self)
 
-        # Предупреждения по конфликтным параметрам
+        # Растягивающийся зазор, чтобы блок параметров не ужимался при появлении предупреждений
+        self.ui.presetSettingsLayout.addStretch(1)
+
+        # Единый блок предупреждений под параметрами (между параметрами и командой FFmpeg)
+        self._warningsExtraContainer = QWidget(self.ui.presetSettingsContainer)
+        self._warningsExtraContainer.setMaximumHeight(100)
+        self._warningsExtraContainer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self._warningsExtraLayout = QVBoxLayout(self._warningsExtraContainer)
+        self._warningsExtraLayout.setContentsMargins(0, 8, 0, 0)
+        self._warningsExtraLayout.setSpacing(4)
+
         self._warningLabel = QLabel("")
         self._warningLabel.setStyleSheet("color: #ff6666;")
         self._warningLabel.setWordWrap(True)
         self._warningLabel.hide()
-        self.ui.presetSettingsLayout.addWidget(self._warningLabel)
+        self._warningsExtraLayout.addWidget(self._warningLabel)
 
-        # Информация о extra_args пресета
         self._extraLabel = QLabel("")
         self._extraLabel.setStyleSheet("color: #8fb5ff;")
         self._extraLabel.setWordWrap(True)
         self._extraLabel.hide()
-        self.ui.presetSettingsLayout.addWidget(self._extraLabel)
+        self._warningsExtraLayout.addWidget(self._extraLabel)
+
+        container_layout = self.ui.presetSettingsContainer.layout()
+        if container_layout is None:
+            container_layout = QVBoxLayout(self.ui.presetSettingsContainer)
+            container_layout.setContentsMargins(0, 0, 0, 0)
+            container_layout.setSpacing(6)
+            container_layout.addWidget(self.ui.verticalLayoutWidget_4, 1)
+        container_layout.addWidget(self._warningsExtraContainer, 0)
 
         # Более тёмная область выпадающего списка для QComboBox
         combo_style = (
