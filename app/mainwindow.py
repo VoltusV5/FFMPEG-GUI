@@ -1,7 +1,7 @@
 import os
 import platform
 import logging
-from constants import (
+from app.constants import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
     HEIGHT_PRESET_EDITOR_CONTAINER, HEIGHT_PRESET_EDITOR_LAYOUT, HEIGHT_BUTTON_PRESET,
     STYLE_RUN_BUTTON, STYLE_ABORT_BUTTON,
@@ -12,8 +12,8 @@ from constants import (
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QSpinBox, QComboBox, QTabWidget
 from PySide6.QtCore import QProcess, QTimer, QEvent
 from PySide6.QtGui import QGuiApplication, QCloseEvent
-from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
-from presetmanager import PresetManager
+from ui.ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
+from models.presetmanager import PresetManager
 from mixins.config_warnings import ConfigWarningsMixin
 from mixins.queue_ui import QueueUIMixin
 from mixins.encoding_process import EncodingMixin
@@ -66,17 +66,19 @@ class MainWindow(QueueUIMixin, EncodingMixin, PresetEditorUIMixin, VideoPreviewM
                 btn.setStyleSheet("padding: 4px 10px;")
 
         self.ffmpegProcess = QProcess(self)
-        self.presetManager = PresetManager()
+        # Корень проекта (для конфигов в корне)
+        self._appDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.presetManager = PresetManager(self._appDir)
         self.currentPresetName = None  # Текущий редактируемый пресет
         # Пользовательские опции (контейнеры, кодеки, разрешения, аудио-кодеки)
         self.customContainers = []
         self.customCodecs = []
         self.customResolutions = []
         self.customAudioCodecs = []
-        self._appDir = os.path.dirname(__file__)
         self._customOptionsPath = os.path.join(self._appDir, CONFIG_CUSTOM_OPTIONS)
         self._savedCommandsPath = os.path.join(self._appDir, CONFIG_SAVED_COMMANDS)
         self._appConfigPath = os.path.join(self._appDir, CONFIG_APP_CONFIG)
+        os.makedirs(os.path.dirname(self._customOptionsPath), exist_ok=True)  # presets/
         self._configWriteWarningsShown = set()
         self._ffmpegWarningShown = False
         self._ffprobeWarningShown = False

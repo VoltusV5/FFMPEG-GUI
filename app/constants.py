@@ -90,11 +90,12 @@ COLOR_BUTTON = "#404040"
 COLOR_HIGHLIGHT = "#4a9eff"
 COLOR_HIGHLIGHTED_TEXT = "#ffffff"
 
-# Имена конфигурационных файлов
-CONFIG_CUSTOM_OPTIONS = "custom_options.json"
-CONFIG_SAVED_COMMANDS = "saved_commands.json"
+# Имена конфигурационных файлов (presets/ — папка с пресетами и сохранёнными данными)
+CONFIG_PRESETS_DIR = "presets"
+CONFIG_CUSTOM_OPTIONS = "presets/custom_options.json"
+CONFIG_SAVED_COMMANDS = "presets/saved_commands.json"
 CONFIG_APP_CONFIG = "app_config.json"
-CONFIG_PRESETS_XML = "presets.xml"
+CONFIG_PRESETS_XML = "presets/presets.xml"
 
 # Аудио: соответствие формата и кодека FFmpeg (общее для «Видео в аудио» и «Аудио конвертер»)
 AUDIO_CODEC_MAP = {

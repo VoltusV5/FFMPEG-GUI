@@ -4,7 +4,7 @@ import os
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt
 
-from constants import (
+from app.constants import (
     COLOR_DROP_BORDER,
     COLOR_DROP_BG,
     COLOR_DROP_LABEL,

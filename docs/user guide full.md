@@ -238,7 +238,7 @@ FFMPEG GUI — графическое приложение для конверт
 - Разрешения
 - Аудио‑кодеки
 
-Эти списки сохраняются между запусками в `custom_options.json`.
+Эти списки сохраняются между запусками в `presets/custom_options.json`.
 
 ## Вкладка "Видео в аудио"
 
@@ -307,8 +307,8 @@ FFMPEG GUI — графическое приложение для конверт
 
 Если папка приложения защищена, файлы настроек не смогут сохраниться:
 
-- `custom_options.json`
-- `saved_commands.json`
-- `presets.xml`
+- `presets/custom_options.json`
+- `presets/saved_commands.json`
+- `presets/presets.xml`
 
 Решение: запускать приложение из каталога с правами на запись.

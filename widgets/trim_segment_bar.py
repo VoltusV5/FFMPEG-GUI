@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QPainter, QColor
 
-from constants import (
+from app.constants import (
     HEIGHT_TRIM_SEGMENT_BAR,
     TRIM_BAR_MIN_WIDTH,
     TRIM_BAR_RADIUS,

@@ -11,11 +11,11 @@ import subprocess
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import QProcess, QTimer
 
-from constants import (
+from app.constants import (
     PROGRESS_MAX, PROGRESS_MIN, PROCESS_NEXT_DELAY_MS,
     ETA_DELAY_SECONDS, ETA_SMOOTHING_ALPHA,
 )
-from queueitem import QueueItem
+from models.queueitem import QueueItem
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QUrl, QEvent, QTimer
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget as QVideoWidgetBase
 
-from constants import FRAME_STEP_MS
+from app.constants import FRAME_STEP_MS
 from widgets import TrimSegmentBar
 
 logger = logging.getLogger(__name__)

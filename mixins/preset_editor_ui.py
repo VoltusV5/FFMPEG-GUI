@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from constants import (
+from app.constants import (
     CONFIG_PRESETS_XML, CONFIG_CUSTOM_OPTIONS, CONFIG_SAVED_COMMANDS,
     JSON_ENCODING, JSON_INDENT,
     PRESETS_TABLE_COLUMN_COUNT, PRESETS_TABLE_DELETE_COLUMN_WIDTH, PRESETS_TABLE_BUTTON_HEIGHT,
@@ -20,7 +20,7 @@ from constants import (
     GRID_SPACING, LABEL_MIN_WIDTH, HEIGHT_WARNINGS_EXTRA,
     GRID_MARGINS_WARNINGS, GRID_SPACING_WARNINGS, CONTAINER_LAYOUT_SPACING, COL0_SPACING,
 )
-from queueitem import QueueItem
+from models.queueitem import QueueItem
 
 logger = logging.getLogger(__name__)
 

@@ -7,13 +7,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from constants import (
+from app.constants import (
     QUEUE_TABLE_COLUMN_COUNT,
     QUEUE_TABLE_COLUMN_WIDTHS_WITH_ROWS,
     QUEUE_TABLE_COLUMN_WIDTHS_EMPTY,
     MAX_DISPLAY_NAME_LENGTH,
 )
-from queueitem import QueueItem
+from models.queueitem import QueueItem
 
 
 class QueueUIMixin:

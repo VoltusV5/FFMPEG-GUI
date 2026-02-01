@@ -70,15 +70,17 @@ python main.py
 Для редактирования интерфейса используйте Qt Designer:
 
 ```bash
-pyside6-designer mainwindow.ui
+pyside6-designer ui/mainwindow.ui
 ```
+
+(из корня проекта; путь к .ui — `ui/mainwindow.ui`)
 
 ### Компиляция UI файла
 
-После изменения `.ui` файла в дизайнере необходимо сгенерировать Python код:
+После изменения `.ui` файла в дизайнере сгенерируйте Python код:
 
 ```bash
-pyside6-uic mainwindow.ui -o ui_mainwindow.py
+pyside6-uic ui/mainwindow.ui -o ui/ui_mainwindow.py
 ```
 
 **Важно:** Делайте это каждый раз после изменения `.ui` файла в дизайнере.
@@ -95,37 +97,40 @@ pyside6-deploy --mode onefile --name OpenFF_GUI main.py
 
 ## Документация
 
-- Руководство пользователя: [`user guide.md`](user%20guide.md)
-- Структура модулей и ответственность за функционал: [`mixins/MODULES.md`](mixins/MODULES.md)
+- Руководство пользователя: [user guide.md](user%20guide.md), полное: [user guide full.md](user%20guide%20full.md)
+- Структура модулей: [../mixins/MODULES.md](../mixins/MODULES.md)
 
 ## Структура проекта
 
 ```
 FFMPEG_GUI/
 ├── .gitignore           # Git ignore
-├── main.py              # Точка входа приложения
-├── mainwindow.py        # Главное окно (миксины: очередь, кодирование, пресеты, предпросмотр, аудио-страницы)
-├── constants.py         # Константы приложения
-├── queueitem.py         # Модель элемента очереди
-├── presetmanager.py     # Управление пресетами (presets.xml)
+├── main.py              # Точка входа (вызов app.main.main())
+├── app/                 # Точка входа и главное окно
+│   ├── main.py          # Запуск приложения, тема, логирование
+│   ├── mainwindow.py    # Главное окно (миксины: очередь, кодирование, пресеты, предпросмотр, аудио)
+│   └── constants.py     # Константы приложения
+├── ui/                  # Сгенерированный UI
+│   ├── mainwindow.ui    # Файл интерфейса Qt Designer
+│   └── ui_mainwindow.py # Сгенерированный код интерфейса
+├── models/              # Модели и данные
+│   ├── queueitem.py     # Модель элемента очереди
+│   └── presetmanager.py # Управление пресетами (presets/presets.xml)
 ├── mixins/              # Миксины главного окна
-│   ├── __init__.py
-│   ├── MODULES.md       # Описание модулей и где искать функционал
-│   ├── queue_ui.py      # Таблица очереди, добавление/удаление файлов
-│   ├── encoding_process.py   # Команда FFmpeg, процесс кодирования, ETA
-│   ├── preset_editor_ui.py   # Редактор пресетов, сохранённые команды, импорт/экспорт
-│   ├── video_preview.py     # Предпросмотр видео, обрезка
-│   ├── audio_pages.py        # Вкладки «Видео в аудио», «Аудио конвертер»
-│   └── config_warnings.py    # Конфиг вкладки, проверка ffmpeg/ffprobe
+│   ├── MODULES.md       # Описание модулей
+│   ├── queue_ui.py, encoding_process.py, preset_editor_ui.py
+│   ├── video_preview.py, audio_pages.py, config_warnings.py
+│   └── ...
 ├── widgets/             # Переиспользуемые виджеты (TrimSegmentBar, FileDropArea)
-├── mainwindow.ui        # Файл интерфейса Qt Designer
-├── ui_mainwindow.py     # Сгенерированный код интерфейса
-├── custom_options.json  # Пользовательские контейнеры/кодеки/разрешения
-├── saved_commands.json  # Сохранённые команды FFmpeg
-├── app_config.json      # Индекс последней вкладки
-├── presets.xml          # Пресеты кодирования
-├── pysidedeploy.spec    # Конфигурация для деплоя
-├── requirements.txt     # Зависимости Python
-├── README.md            # Этот файл
-└── user guide.md        # Руководство пользователя
+├── presets/             # Пресеты и сохранённые данные
+│   ├── presets.xml      # Пресеты кодирования
+│   ├── custom_options.json  # Пользовательские контейнеры/кодеки/разрешения
+│   └── saved_commands.json  # Сохранённые команды FFmpeg
+├── docs/                # Документация
+│   ├── README.md        # Этот файл
+│   ├── user guide.md    # Руководство пользователя
+│   └── user guide full.md
+├── app_config.json      # Индекс последней вкладки (в корне)
+├── pysidedeploy.spec, requirements.txt
+└── ...
 ```

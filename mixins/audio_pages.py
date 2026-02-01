@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QProcess
 
-from constants import (
+from app.constants import (
     AUDIO_FORMATS, AUDIO_QUALITY_OPTIONS, AUDIO_CODEC_MAP,
     STYLE_CONVERT_BUTTON, PROGRESS_MIN, PROGRESS_MAX,
 )

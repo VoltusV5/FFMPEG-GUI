@@ -7,7 +7,7 @@ import platform
 import logging
 from PySide6.QtWidgets import QMessageBox
 
-from constants import JSON_ENCODING, JSON_INDENT, CONFIG_APP_CONFIG
+from app.constants import JSON_ENCODING, JSON_INDENT, CONFIG_APP_CONFIG
 
 logger = logging.getLogger(__name__)
 

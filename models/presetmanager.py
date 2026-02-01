@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 import os
 import logging
 
-from constants import CONFIG_PRESETS_XML
+from app.constants import CONFIG_PRESETS_XML
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,11 @@ PRESET_DEFAULTS = {
 
 
 class PresetManager:
-    """Работа с presets.xml."""
-    def __init__(self):
-        self.presets_file = os.path.join(os.path.dirname(__file__), CONFIG_PRESETS_XML)
+    """Работа с presets/presets.xml."""
+    def __init__(self, app_dir=None):
+        """app_dir — корень проекта (presets/ в нём); если None — рядом с этим файлом."""
+        base = app_dir if app_dir is not None else os.path.dirname(__file__)
+        self.presets_file = os.path.join(base, CONFIG_PRESETS_XML)
 
     def savePreset(self, name, codec, resolution, container, description="", insert_at_top=False, **kwargs):
         """Сохраняет пресет. Существующий сохраняет позицию, новый можно вставить в начало.
@@ -109,7 +111,6 @@ class PresetManager:
             presets[idx + 1], presets[idx] = presets[idx], presets[idx + 1]
         else:
             return False
-        # Пересобираем root в новом порядке
         for p in list(root):
             root.remove(p)
         for p in presets:
@@ -123,7 +124,6 @@ class PresetManager:
         return elem.text
 
     def _preset_from_elem(self, preset_elem):
-        """Собирает словарь данных пресета из XML-элемента. Использует PRESET_ALL_KEYS и PRESET_DEFAULTS."""
         data = {"name": preset_elem.get("name", "")}
         for key in PRESET_ALL_KEYS:
             data[key] = self._elem_text(preset_elem.find(key), PRESET_DEFAULTS.get(key, ""))
@@ -141,7 +141,6 @@ class PresetManager:
         return result
 
     def loadAllPresets(self):
-        """Возвращает список словарей с данными по всем пресетам (включая все доп. поля)."""
         presets = []
         if not os.path.exists(self.presets_file):
             return presets
@@ -152,9 +151,6 @@ class PresetManager:
         return presets
 
     def mergePresetsFromFile(self, file_path):
-        """Импортирует пресеты из файла, не перезаписывая существующие.
-        При совпадении имени добавляет суффикс ' imported'.
-        """
         if not os.path.exists(file_path):
             return False
         try:
