@@ -15,13 +15,13 @@ exec_directory = .
 # path to the project file relative to project_dir
 project_file = 
 
-# application icon (относительно project_dir; в проекте — icon.ico)
+# application icon (???????????? project_dir; ? ??????? ? icon.ico)
 icon = icon.ico
 
 [python]
 
-# python path (pyside6-deploy при запуске подставит свой; можно оставить пустым и запускать из активированного venv)
-python_path =
+# python path (pyside6-deploy ??? ??????? ????????? ????; ????? ???????? ?????? ? ????????? ?? ??????????????? venv)
+python_path = D:\Educational activities\Proga\university_labs\proga\PY_FFMPEG_GUI\FFMPEG_GUI\venv\Scripts\python.exe
 
 # python packages to install
 packages = Nuitka==2.7.11
@@ -39,12 +39,12 @@ qml_files =
 # excluded qml plugin binaries
 excluded_qml_plugins = 
 
-# qt modules used. comma separated (Multimedia, MultimediaWidgets — для видеоплеера)
-modules = Core,Gui,Widgets,Multimedia,MultimediaWidgets
+# qt modules used. comma separated (multimedia, multimediawidgets ? ??? ???????????)
+modules = Core,Gui,Multimedia,MultimediaWidgets,Widgets
 
 # qt plugins used by the application. only relevant for desktop deployment
 # for qt plugins used in android application see [android][plugins]
-plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,xcbglintegrations
+plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformats,multimedia,platforminputcontexts,platforms,platforms/darwin,platformthemes,styles,xcbglintegrations
 
 [android]
 
@@ -67,8 +67,8 @@ macos.permissions =
 # mode of using nuitka. accepts standalone or onefile. default = onefile
 mode = standalone
 
-# specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations
+# specify any extra nuitka arguments (presets/ ? ????? ?? ????????? ??? ????????????)
+extra_args = --quiet --noinclude-qt-translations --include-data-dir=presets=presets --include-data-dir=docs=docs --windows-console-mode=disable
 
 [buildozer]
 

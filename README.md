@@ -1,11 +1,9 @@
 # FFMPEG GUI
 
-Графическое приложение на PySide6 для конвертации видео и аудио файлов с помощью FFmpeg. Позволяет настраивать параметры конвертации через удобный графический интерфейс без необходимости работы с командной строкой.
-
-## Описание
-
 FFMPEG GUI — десктопное приложение с графическим интерфейсом для работы с FFmpeg.
 Поддерживает очередь конвертаций, пресеты, предпросмотр и логирование.
+
+![Скрин приложения](/image/README/screen.png)
 
 ## Требования
 
@@ -16,12 +14,17 @@ FFMPEG GUI — десктопное приложение с графически
   - **рекомендуется** также положить рядом `ffprobe.exe` (используется для более точной оценки прогресса кодирования)
     Инструкция по установке FFmpeg:
     - Заходим на официальный сайт ffmpeg [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
-    - наводимся на значок Windows -> windows builds from gyan.dev (https://www.gyan.dev/ffmpeg/builds/) 
-    - листаем ниже до "release builds" -> [https://github.com/GyanD/codexffmpeg/releases/](https://github.com/GyanD/codexffmpeg/releases/tag/8.0.1) 
+    - наводимся на значок Windows -> windows builds from gyan.dev (https://www.gyan.dev/ffmpeg/builds/)
+    - листаем ниже до "release builds" -> [https://github.com/GyanD/codexffmpeg/releases/](https://github.com/GyanD/codexffmpeg/releases/tag/8.0.1)
     - скачиваем билд [ffmpeg-8.0.1-essentials_build.zip](https://github.com/GyanD/codexffmpeg/releases/download/8.0.1/ffmpeg-8.0.1-essentials_build.zip)
     - после скачивания распаковываем
     - заходим в папку bin
     - копируем ffprobe.exe и ffmpeg.exe в корень FFMPEG GUI
+
+## Документация
+
+- Руководство пользователя: [user guide.md](user%20guide.md), полное: [user guide full.md](user%20guide%20full.md)
+- Структура модулей: [../mixins/MODULES.md](../mixins/MODULES.md)
 
 ## Установка
 
@@ -87,50 +90,37 @@ pyside6-uic ui/mainwindow.ui -o ui/ui_mainwindow.py
 
 ## Сборка и деплой
 
-Для создания исполняемого файла используйте:
+Из **корня проекта** (где лежат `main.py` и `pysidedeploy.spec`), с активированным виртуальным окружением и установленным PySide6:
 
 ```bash
-pyside6-deploy --mode onefile --name OpenFF_GUI main.py
+pyside6-deploy
 ```
 
-Эта команда создаст standalone исполняемый файл без консольного окна.
+Или явно указать конфиг:
 
-## Документация
-
-- Руководство пользователя: [user guide.md](user%20guide.md), полное: [user guide full.md](user%20guide%20full.md)
-- Структура модулей: [../mixins/MODULES.md](../mixins/MODULES.md)
-
-## Структура проекта
-
+```bash
+pyside6-deploy --config-file pysidedeploy.spec
 ```
-FFMPEG_GUI/
-├── .gitignore           # Git ignore
-├── main.py              # Точка входа (вызов app.main.main())
-├── app/                 # Точка входа и главное окно
-│   ├── main.py          # Запуск приложения, тема, логирование
-│   ├── mainwindow.py    # Главное окно (миксины: очередь, кодирование, пресеты, предпросмотр, аудио)
-│   └── constants.py     # Константы приложения
-├── ui/                  # Сгенерированный UI
-│   ├── mainwindow.ui    # Файл интерфейса Qt Designer
-│   └── ui_mainwindow.py # Сгенерированный код интерфейса
-├── models/              # Модели и данные
-│   ├── queueitem.py     # Модель элемента очереди
-│   └── presetmanager.py # Управление пресетами (presets/presets.xml)
-├── mixins/              # Миксины главного окна
-│   ├── MODULES.md       # Описание модулей
-│   ├── queue_ui.py, encoding_process.py, preset_editor_ui.py
-│   ├── video_preview.py, audio_pages.py, config_warnings.py
-│   └── ...
-├── widgets/             # Переиспользуемые виджеты (TrimSegmentBar, FileDropArea)
-├── presets/             # Пресеты и сохранённые данные
-│   ├── presets.xml      # Пресеты кодирования
-│   ├── custom_options.json  # Пользовательские контейнеры/кодеки/разрешения
-│   └── saved_commands.json  # Сохранённые команды FFmpeg
-├── docs/                # Документация
-│   ├── README.md        # Этот файл
-│   ├── user guide.md    # Руководство пользователя
-│   └── user guide full.md
-├── app_config.json      # Индекс последней вкладки (в корне)
-├── pysidedeploy.spec, requirements.txt
-└── ...
+
+### Авто‑сборка с переносом DLL/PYD в `bin/`
+
+Чтобы после сборки файлы `.dll` и `.pyd` оказались в папке `bin/`, используйте скрипт:
+
+```bat
+tools\build.bat
 ```
+
+Скрипт:
+
+- запускает `pyside6-deploy`;
+- находит свежую папку `*.dist`;
+- переносит `.dll/.pyd` в `bin/` (критичные DLL остаются рядом с exe).
+
+> Приложение автоматически добавляет `bin/` в `PATH` и `sys.path`, поэтому библиотеки подхватываются без ручных настроек.
+
+**Важно:** некоторые DLL должны лежать рядом с exe, иначе приложение не стартует (Windows загружает их до запуска Python).
+По умолчанию рядом остаются:
+
+- _ctypes.pyd, pyexpat.pyd
+
+Сборка создаёт standalone-приложение (папка с exe и библиотеками) в каталоге, указанном в `exec_directory` в spec (по умолчанию — корень проекта). В сборку автоматически включается папка **presets/** (presets.xml, custom_options.json, saved_commands.json) — у пользователя будут базовые пресеты и настройки по умолчанию. Иконка берётся из `icon.ico`; настройки Windows — из секции `[windows]` в `pysidedeploy.spec`.

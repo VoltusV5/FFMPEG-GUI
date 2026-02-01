@@ -2,29 +2,97 @@
 import sys
 import os
 import logging
-from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QPalette, QColor
 
 from app.constants import (
     COLOR_WINDOW, COLOR_WINDOW_TEXT, COLOR_BASE, COLOR_ALTERNATE_BASE,
     COLOR_BUTTON, COLOR_HIGHLIGHT, COLOR_HIGHLIGHTED_TEXT,
 )
-from app.mainwindow import MainWindow
+
+
+def _setup_runtime_paths():
+    """Если рядом есть bin/, добавляет его в PATH/sys.path (для dll/pyd)."""
+    app_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bin_dir = os.path.join(app_dir, "bin")
+    if not os.path.isdir(bin_dir):
+        return
+    if bin_dir not in sys.path:
+        sys.path.insert(0, bin_dir)
+    os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+    try:
+        if os.name == "nt":
+            os.add_dll_directory(bin_dir)
+    except Exception:
+        pass
+
+
+_setup_runtime_paths()
+
+# PySide6 imports after runtime path setup
+from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtGui import QPalette, QColor
+from PySide6.QtCore import QStandardPaths
+
+
+def _pick_log_path():
+    """Выбирает путь для app.log (корень проекта или AppData, если нет прав)."""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    preferred = os.path.join(project_root, "app.log")
+    try:
+        with open(preferred, "a", encoding="utf-8"):
+            pass
+        return preferred
+    except Exception:
+        pass
+    user_dir = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation) or os.path.expanduser("~")
+    try:
+        os.makedirs(user_dir, exist_ok=True)
+    except Exception:
+        user_dir = os.path.expanduser("~")
+    return os.path.join(user_dir, "app.log")
 
 
 def setup_logging():
-    """Логирование в app.log в корне проекта."""
-    # Корень проекта — родитель папки app/
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    log_path = os.path.join(project_root, "app.log")
+    """Логирование в app.log (корень проекта или AppData)."""
+    log_path = _pick_log_path()
     root = logging.getLogger()
-    if root.handlers:
-        return
     root.setLevel(logging.INFO)
+    if any(isinstance(h, logging.FileHandler) for h in root.handlers):
+        return
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     handler = logging.FileHandler(log_path, encoding="utf-8")
     handler.setFormatter(formatter)
     root.addHandler(handler)
+
+
+def _patch_silent_message_boxes():
+    """Отключает системные звуки у QMessageBox, используя не‑native диалоги."""
+    def _show_box(icon, parent, title, text, buttons=QMessageBox.Ok, default_button=QMessageBox.NoButton):
+        box = QMessageBox(parent)
+        box.setIcon(icon)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setStandardButtons(buttons)
+        if default_button != QMessageBox.NoButton:
+            box.setDefaultButton(default_button)
+        box.setOption(QMessageBox.DontUseNativeDialog, True)
+        return box.exec()
+
+    def _info(parent, title, text, buttons=QMessageBox.Ok, default_button=QMessageBox.NoButton):
+        return _show_box(QMessageBox.Information, parent, title, text, buttons, default_button)
+
+    def _warn(parent, title, text, buttons=QMessageBox.Ok, default_button=QMessageBox.NoButton):
+        return _show_box(QMessageBox.Warning, parent, title, text, buttons, default_button)
+
+    def _crit(parent, title, text, buttons=QMessageBox.Ok, default_button=QMessageBox.NoButton):
+        return _show_box(QMessageBox.Critical, parent, title, text, buttons, default_button)
+
+    def _question(parent, title, text, buttons=QMessageBox.Yes | QMessageBox.No, default_button=QMessageBox.NoButton):
+        return _show_box(QMessageBox.Question, parent, title, text, buttons, default_button)
+
+    QMessageBox.information = _info
+    QMessageBox.warning = _warn
+    QMessageBox.critical = _crit
+    QMessageBox.question = _question
 
 
 # Тёмно-серая тема: фон #2b2b2b, панели #363636, акцент #4a9eff, текст #e0e0e0
@@ -233,6 +301,7 @@ def main():
     """Запуск приложения."""
     setup_logging()
     app = QApplication(sys.argv)
+    _patch_silent_message_boxes()
     app.setStyle("Fusion")
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(COLOR_WINDOW))
@@ -245,6 +314,7 @@ def main():
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(COLOR_HIGHLIGHTED_TEXT))
     app.setPalette(palette)
     app.setStyleSheet(DARK_STYLESHEET)
+    from app.mainwindow import MainWindow
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

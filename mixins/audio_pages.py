@@ -17,6 +17,36 @@ from widgets import FileDropArea
 class AudioPagesMixin:
     """Миксин: страницы «Видео в аудио» и «Аудио конвертер» — один файл, конвертация в аудио."""
 
+    def _probeHasAudioStream(self, input_path):
+        """Проверяет наличие аудиопотока через ffprobe. Возвращает True/False/None."""
+        if not input_path or not os.path.isfile(input_path):
+            return None
+        if not hasattr(self, "_findTool") or not self._findTool("ffprobe"):
+            return None
+        ffprobe_exec = self._getToolPath("ffprobe") if hasattr(self, "_getToolPath") else "ffprobe"
+        args = ["-v", "error", "-show_entries", "stream=codec_type", "-of", "json", os.path.normpath(input_path)]
+        proc = QProcess()
+        proc.start(ffprobe_exec, args)
+        if not proc.waitForFinished(4000):
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            return None
+        if proc.exitStatus() != QProcess.ExitStatus.NormalExit or proc.exitCode() != 0:
+            return None
+        raw = proc.readAllStandardOutput().data()
+        text = raw.decode("utf-8", errors="replace") if raw else ""
+        if not text:
+            return None
+        try:
+            import json
+            data = json.loads(text)
+            streams = data.get("streams") or []
+            return any(s.get("codec_type") == "audio" for s in streams)
+        except Exception:
+            return None
+
     def _computeOutputPathForExtension(self, input_path, ext):
         """Строит выходной путь: та же папка, то же имя с новым расширением; при коллизии добавляет (1), (2)…"""
         if not input_path or not ext:
@@ -46,6 +76,10 @@ class AudioPagesMixin:
 
         input_row = QHBoxLayout()
         input_row.addWidget(QLabel("Входной файл:"))
+        self._v2aInputCheck = QLabel("✓")
+        self._v2aInputCheck.setStyleSheet("color: #4caf50; font-weight: bold;")
+        self._v2aInputCheck.setVisible(False)
+        input_row.addWidget(self._v2aInputCheck)
         self._v2aInputEdit = QLineEdit()
         self._v2aInputEdit.setReadOnly(True)
         self._v2aInputEdit.setPlaceholderText("Выберите видеофайл...")
@@ -105,8 +139,10 @@ class AudioPagesMixin:
         layout.addLayout(btn_row)
 
         self._v2aLastOutputPath = ""
+        self._v2aLastError = ""
         self._v2aProcess = QProcess(self)
         self._v2aProcess.finished.connect(self._v2aProcessFinished)
+        self._v2aProcess.errorOccurred.connect(self._v2aProcessError)
         self._v2aProcess.readyReadStandardError.connect(self._v2aReadProcessOutput)
         self._v2aProcess.readyReadStandardOutput.connect(self._v2aReadProcessOutput)
 
@@ -140,6 +176,8 @@ class AudioPagesMixin:
         if not path:
             return
         self._v2aInputEdit.setText(path)
+        if hasattr(self, "_v2aInputCheck"):
+            self._v2aInputCheck.setVisible(os.path.isfile(path))
         self._v2aUpdateOutputPath()
         self._v2aOpenFolderBtn.setEnabled(False)
         self._v2aProgressBar.setVisible(False)
@@ -148,6 +186,8 @@ class AudioPagesMixin:
         inp = self._v2aInputEdit.text().strip()
         if not inp or not os.path.isfile(inp):
             self._v2aOutputEdit.setText("")
+            if hasattr(self, "_v2aInputCheck"):
+                self._v2aInputCheck.setVisible(False)
             return
         ext = self._v2aGetFormat()
         self._v2aOutputEdit.setText(self._computeOutputPathForExtension(inp, ext))
@@ -156,6 +196,13 @@ class AudioPagesMixin:
         inp = self._v2aInputEdit.text().strip()
         if not inp or not os.path.isfile(inp):
             QMessageBox.warning(self, "Видео в аудио", "Выберите входной видеофайл.")
+            return
+        if hasattr(self, "_findTool") and not self._findTool("ffmpeg"):
+            QMessageBox.critical(self, "Видео в аудио", "Не удалось найти ffmpeg. Положите ffmpeg.exe рядом с приложением или добавьте в PATH.")
+            return
+        has_audio = self._probeHasAudioStream(inp)
+        if has_audio is False:
+            QMessageBox.warning(self, "Видео в аудио", "В выбранном видеофайле нет аудиодорожки.")
             return
         out = self._v2aOutputEdit.text().strip()
         if not out:
@@ -173,17 +220,20 @@ class AudioPagesMixin:
         args.append(os.path.normpath(out))
 
         self._v2aConvertBtn.setEnabled(False)
+        self._v2aLastError = ""
         self._v2aLastOutputPath = out
         self._v2aProgressBar.setVisible(True)
         self._v2aProgressBar.setRange(0, 0)
-        self._v2aProcess.start("ffmpeg", args)
+        ffmpeg_exec = self._getToolPath("ffmpeg") if hasattr(self, "_getToolPath") else "ffmpeg"
+        self._v2aProcess.start(ffmpeg_exec, args)
 
     def _v2aReadProcessOutput(self):
         proc = getattr(self, "_v2aProcess", None)
         if proc and proc == self.sender():
             data = proc.readAllStandardError().data() + proc.readAllStandardOutput().data()
             if data:
-                pass
+                text = data.decode("utf-8", errors="replace")
+                self._v2aLastError = (self._v2aLastError + text)[-4000:]
 
     def _v2aProcessFinished(self, exitCode, exitStatus):
         self._v2aConvertBtn.setEnabled(True)
@@ -199,7 +249,22 @@ class AudioPagesMixin:
                     os.remove(self._v2aLastOutputPath)
             except Exception:
                 pass
-            QMessageBox.warning(self, "Видео в аудио", "Ошибка конвертации.")
+            details = (self._v2aLastError or "").strip()
+            msg = "Ошибка конвертации."
+            if details:
+                msg += "\n\nПоследняя ошибка:\n" + details[-800:]
+            QMessageBox.warning(self, "Видео в аудио", msg)
+
+    def _v2aProcessError(self, error):
+        self._v2aConvertBtn.setEnabled(True)
+        self._v2aProgressBar.setRange(PROGRESS_MIN, PROGRESS_MAX)
+        self._v2aProgressBar.setValue(PROGRESS_MIN)
+        self._v2aOpenFolderBtn.setEnabled(False)
+        msg = "Ошибка запуска FFmpeg."
+        details = (self._v2aLastError or "").strip()
+        if details:
+            msg += "\n\nПоследняя ошибка:\n" + details[-800:]
+        QMessageBox.warning(self, "Видео в аудио", msg)
 
     def _v2aOpenFolder(self):
         path = getattr(self, "_v2aLastOutputPath", "") or self._v2aOutputEdit.text().strip()
@@ -228,6 +293,10 @@ class AudioPagesMixin:
 
         input_row = QHBoxLayout()
         input_row.addWidget(QLabel("Входной файл:"))
+        self._a2aInputCheck = QLabel("✓")
+        self._a2aInputCheck.setStyleSheet("color: #4caf50; font-weight: bold;")
+        self._a2aInputCheck.setVisible(False)
+        input_row.addWidget(self._a2aInputCheck)
         self._a2aInputEdit = QLineEdit()
         self._a2aInputEdit.setReadOnly(True)
         self._a2aInputEdit.setPlaceholderText("Выберите аудиофайл...")
@@ -288,8 +357,10 @@ class AudioPagesMixin:
         layout.addLayout(btn_row)
 
         self._a2aLastOutputPath = ""
+        self._a2aLastError = ""
         self._a2aProcess = QProcess(self)
         self._a2aProcess.finished.connect(self._a2aProcessFinished)
+        self._a2aProcess.errorOccurred.connect(self._a2aProcessError)
         self._a2aProcess.readyReadStandardError.connect(self._a2aReadProcessOutput)
         self._a2aProcess.readyReadStandardOutput.connect(self._a2aReadProcessOutput)
 
@@ -323,6 +394,8 @@ class AudioPagesMixin:
         if not path:
             return
         self._a2aInputEdit.setText(path)
+        if hasattr(self, "_a2aInputCheck"):
+            self._a2aInputCheck.setVisible(os.path.isfile(path))
         self._a2aUpdateOutputPath()
         self._a2aOpenFolderBtn.setEnabled(False)
         self._a2aProgressBar.setVisible(False)
@@ -331,6 +404,8 @@ class AudioPagesMixin:
         inp = self._a2aInputEdit.text().strip()
         if not inp or not os.path.isfile(inp):
             self._a2aOutputEdit.setText("")
+            if hasattr(self, "_a2aInputCheck"):
+                self._a2aInputCheck.setVisible(False)
             return
         ext = self._a2aGetFormat()
         self._a2aOutputEdit.setText(self._computeOutputPathForExtension(inp, ext))
@@ -339,6 +414,9 @@ class AudioPagesMixin:
         inp = self._a2aInputEdit.text().strip()
         if not inp or not os.path.isfile(inp):
             QMessageBox.warning(self, "Аудио конвертер", "Выберите входной аудиофайл.")
+            return
+        if hasattr(self, "_findTool") and not self._findTool("ffmpeg"):
+            QMessageBox.critical(self, "Аудио конвертер", "Не удалось найти ffmpeg. Положите ffmpeg.exe рядом с приложением или добавьте в PATH.")
             return
         out = self._a2aOutputEdit.text().strip()
         if not out:
@@ -356,17 +434,20 @@ class AudioPagesMixin:
         args.append(os.path.normpath(out))
 
         self._a2aConvertBtn.setEnabled(False)
+        self._a2aLastError = ""
         self._a2aLastOutputPath = out
         self._a2aProgressBar.setVisible(True)
         self._a2aProgressBar.setRange(0, 0)
-        self._a2aProcess.start("ffmpeg", args)
+        ffmpeg_exec = self._getToolPath("ffmpeg") if hasattr(self, "_getToolPath") else "ffmpeg"
+        self._a2aProcess.start(ffmpeg_exec, args)
 
     def _a2aReadProcessOutput(self):
         proc = getattr(self, "_a2aProcess", None)
         if proc and proc == self.sender():
             data = proc.readAllStandardError().data() + proc.readAllStandardOutput().data()
             if data:
-                pass
+                text = data.decode("utf-8", errors="replace")
+                self._a2aLastError = (self._a2aLastError + text)[-4000:]
 
     def _a2aProcessFinished(self, exitCode, exitStatus):
         self._a2aConvertBtn.setEnabled(True)
@@ -382,7 +463,22 @@ class AudioPagesMixin:
                     os.remove(self._a2aLastOutputPath)
             except Exception:
                 pass
-            QMessageBox.warning(self, "Аудио конвертер", "Ошибка конвертации.")
+            details = (self._a2aLastError or "").strip()
+            msg = "Ошибка конвертации."
+            if details:
+                msg += "\n\nПоследняя ошибка:\n" + details[-800:]
+            QMessageBox.warning(self, "Аудио конвертер", msg)
+
+    def _a2aProcessError(self, error):
+        self._a2aConvertBtn.setEnabled(True)
+        self._a2aProgressBar.setRange(PROGRESS_MIN, PROGRESS_MAX)
+        self._a2aProgressBar.setValue(PROGRESS_MIN)
+        self._a2aOpenFolderBtn.setEnabled(False)
+        msg = "Ошибка запуска FFmpeg."
+        details = (self._a2aLastError or "").strip()
+        if details:
+            msg += "\n\nПоследняя ошибка:\n" + details[-800:]
+        QMessageBox.warning(self, "Аудио конвертер", msg)
 
     def _a2aOpenFolder(self):
         path = getattr(self, "_a2aLastOutputPath", "") or self._a2aOutputEdit.text().strip()

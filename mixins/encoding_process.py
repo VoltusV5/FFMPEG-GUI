@@ -558,6 +558,9 @@ class EncodingMixin:
     def onProcessError(self, error):
         if getattr(self, '_closingApp', False):
             return
+        # Игнорируем ошибки при намеренной остановке (пауза/завершить)
+        if getattr(self, '_abortRequested', False) or (getattr(self, 'isPaused', False) and getattr(self, '_pauseStopRequested', False)):
+            return
         error_map = {
             QProcess.ProcessError.FailedToStart: "Не удалось запустить FFmpeg. Проверьте, что ffmpeg доступен.",
             QProcess.ProcessError.Crashed: "Процесс FFmpeg завершился аварийно.",

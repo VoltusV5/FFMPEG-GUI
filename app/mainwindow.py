@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from app.constants import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -66,8 +67,11 @@ class MainWindow(QueueUIMixin, EncodingMixin, PresetEditorUIMixin, VideoPreviewM
                 btn.setStyleSheet("padding: 4px 10px;")
 
         self.ffmpegProcess = QProcess(self)
-        # Корень проекта (для конфигов в корне)
-        self._appDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Корень приложения: при деплое (frozen) — папка с exe, иначе — корень проекта
+        if getattr(sys, "frozen", False):
+            self._appDir = os.path.dirname(sys.executable)
+        else:
+            self._appDir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.presetManager = PresetManager(self._appDir)
         self.currentPresetName = None  # Текущий редактируемый пресет
         # Пользовательские опции (контейнеры, кодеки, разрешения, аудио-кодеки)
@@ -240,6 +244,7 @@ class MainWindow(QueueUIMixin, EncodingMixin, PresetEditorUIMixin, VideoPreviewM
             self.ui.videoTimelineSlider.sliderMoved.connect(self.seekVideo)
             self.ui.videoTimelineSlider.sliderPressed.connect(self.pauseVideoForSeek)
             self.ui.videoTimelineSlider.sliderReleased.connect(self.resumeVideoAfterSeek)
+            self.ui.videoTimelineSlider.valueChanged.connect(self.onVideoTimelineValueChanged)
         self._setVideoPlayerTooltips()
         
         # Подключение кнопки паузы

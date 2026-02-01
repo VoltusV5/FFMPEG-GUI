@@ -29,6 +29,19 @@ class ConfigWarningsMixin:
                 return True
         return False
 
+    def _getToolPath(self, name):
+        """Возвращает путь к инструменту: локальный рядом с приложением или имя для PATH."""
+        if not name:
+            return name
+        names = [name]
+        if platform.system() == "Windows":
+            names = [name + ".exe", name]
+        for candidate in names:
+            local_path = os.path.join(self._appDir, candidate)
+            if os.path.exists(local_path):
+                return local_path
+        return name
+
     def _checkToolsAvailability(self):
         if not self._ffmpegWarningShown and not self._findTool("ffmpeg"):
             self._ffmpegWarningShown = True
