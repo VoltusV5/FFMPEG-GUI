@@ -96,24 +96,36 @@ pyside6-deploy --mode onefile --name OpenFF_GUI main.py
 ## Документация
 
 - Руководство пользователя: [`user guide.md`](user%20guide.md)
+- Структура модулей и ответственность за функционал: [`mixins/MODULES.md`](mixins/MODULES.md)
 
 ## Структура проекта
 
 ```
 FFMPEG_GUI/
 ├── .gitignore           # Git ignore
-├── custom_options.json  # Пользовательские списки (контейнеры/кодеки)
-├── icon.ico             # Иконка приложения
 ├── main.py              # Точка входа приложения
-├── mainwindow.py        # Основная логика главного окна
-├── presetmanager.py     # Управление пресетами
+├── mainwindow.py        # Главное окно (миксины: очередь, кодирование, пресеты, предпросмотр, аудио-страницы)
+├── constants.py         # Константы приложения
 ├── queueitem.py         # Модель элемента очереди
+├── presetmanager.py     # Управление пресетами (presets.xml)
+├── mixins/              # Миксины главного окна
+│   ├── __init__.py
+│   ├── MODULES.md       # Описание модулей и где искать функционал
+│   ├── queue_ui.py      # Таблица очереди, добавление/удаление файлов
+│   ├── encoding_process.py   # Команда FFmpeg, процесс кодирования, ETA
+│   ├── preset_editor_ui.py   # Редактор пресетов, сохранённые команды, импорт/экспорт
+│   ├── video_preview.py     # Предпросмотр видео, обрезка
+│   ├── audio_pages.py        # Вкладки «Видео в аудио», «Аудио конвертер»
+│   └── config_warnings.py    # Конфиг вкладки, проверка ffmpeg/ffprobe
+├── widgets/             # Переиспользуемые виджеты (TrimSegmentBar, FileDropArea)
 ├── mainwindow.ui        # Файл интерфейса Qt Designer
 ├── ui_mainwindow.py     # Сгенерированный код интерфейса
-├── presets.xml          # Базовые пресеты (можно редактировать)
-├── pysidedeploy.spec    # Конфигурация для деплоя
-├── README.md            # Этот файл
-├── requirements.txt     # Зависимости Python
+├── custom_options.json  # Пользовательские контейнеры/кодеки/разрешения
 ├── saved_commands.json  # Сохранённые команды FFmpeg
+├── app_config.json      # Индекс последней вкладки
+├── presets.xml          # Пресеты кодирования
+├── pysidedeploy.spec    # Конфигурация для деплоя
+├── requirements.txt     # Зависимости Python
+├── README.md            # Этот файл
 └── user guide.md        # Руководство пользователя
 ```
