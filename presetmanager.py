@@ -1,9 +1,12 @@
 import xml.etree.ElementTree as ET
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PresetManager:
+    """Работа с presets.xml."""
     def __init__(self):
-        # Путь к presets.xml рядом с exe или скриптом
         self.presets_file = os.path.join(os.path.dirname(__file__), 'presets.xml')
 
     def savePreset(self, name, codec, resolution, container, description="", insert_at_top=False, **kwargs):
@@ -11,51 +14,56 @@ class PresetManager:
         Доп. параметры: audio_codec, crf, bitrate, fps, audio_bitrate, sample_rate, preset_speed,
         profile_level, pixel_format, tune, threads, keyint, tag_hvc1, vf_lanczos, extra_args.
         """
-        if os.path.exists(self.presets_file):
-            tree = ET.parse(self.presets_file)
-            root = tree.getroot()
-        else:
-            root = ET.Element('presets')
-            tree = ET.ElementTree(root)
-
-        preset_elem = None
-        for preset in list(root):
-            if preset.get('name') == name:
-                preset_elem = preset
-                break
-
-        if preset_elem is None:
-            preset_elem = ET.Element('preset')
-            if insert_at_top:
-                root.insert(0, preset_elem)
+        try:
+            if os.path.exists(self.presets_file):
+                tree = ET.parse(self.presets_file)
+                root = tree.getroot()
             else:
-                root.append(preset_elem)
-        else:
-            for child in list(preset_elem):
-                preset_elem.remove(child)
-        preset_elem.set('name', name)
-        ET.SubElement(preset_elem, 'codec').text = codec or ""
-        ET.SubElement(preset_elem, 'resolution').text = resolution or ""
-        ET.SubElement(preset_elem, 'container').text = container or ""
-        desc_elem = ET.SubElement(preset_elem, 'description')
-        desc_elem.text = description if description else ""
+                root = ET.Element('presets')
+                tree = ET.ElementTree(root)
 
-        extra_keys = (
-            'audio_codec', 'crf', 'bitrate', 'fps', 'audio_bitrate', 'sample_rate',
-            'preset_speed', 'profile_level', 'pixel_format', 'tune', 'threads',
-            'keyint', 'tag_hvc1', 'vf_lanczos', 'extra_args'
-        )
-        for key in extra_keys:
-            val = kwargs.get(key)
-            if val is None:
-                continue
-            if isinstance(val, bool):
-                val = "1" if val else "0"
+            preset_elem = None
+            for preset in list(root):
+                if preset.get('name') == name:
+                    preset_elem = preset
+                    break
+
+            if preset_elem is None:
+                preset_elem = ET.Element('preset')
+                if insert_at_top:
+                    root.insert(0, preset_elem)
+                else:
+                    root.append(preset_elem)
             else:
-                val = str(val)
-            ET.SubElement(preset_elem, key).text = val
+                for child in list(preset_elem):
+                    preset_elem.remove(child)
+            preset_elem.set('name', name)
+            ET.SubElement(preset_elem, 'codec').text = codec or ""
+            ET.SubElement(preset_elem, 'resolution').text = resolution or ""
+            ET.SubElement(preset_elem, 'container').text = container or ""
+            desc_elem = ET.SubElement(preset_elem, 'description')
+            desc_elem.text = description if description else ""
 
-        tree.write(self.presets_file, encoding='utf-8', xml_declaration=True)
+            extra_keys = (
+                'audio_codec', 'crf', 'bitrate', 'fps', 'audio_bitrate', 'sample_rate',
+                'preset_speed', 'profile_level', 'pixel_format', 'tune', 'threads',
+                'keyint', 'tag_hvc1', 'vf_lanczos', 'extra_args'
+            )
+            for key in extra_keys:
+                val = kwargs.get(key)
+                if val is None:
+                    continue
+                if isinstance(val, bool):
+                    val = "1" if val else "0"
+                else:
+                    val = str(val)
+                ET.SubElement(preset_elem, key).text = val
+
+            tree.write(self.presets_file, encoding='utf-8', xml_declaration=True)
+            return True
+        except Exception:
+            logger.exception("Ошибка сохранения пресета")
+            return False
 
     def removePreset(self, name):
         if not os.path.exists(self.presets_file):
@@ -139,8 +147,6 @@ class PresetManager:
         for preset in root:
             names.append(preset.get('name'))
         return names
-
-    # ===== Новая логика для редактора пресетов =====
 
     def loadAllPresets(self):
         """Возвращает список словарей с данными по всем пресетам (включая все доп. поля)."""

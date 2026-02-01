@@ -1,12 +1,4 @@
 {
   "commands": [
-    {
-      "name": "mkv special",
-      "command": "ffmpeg -i \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\длинное видео_1.mov\" -preset medium -c:a copy \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\длинное видео_1_converted.mkv\""
-    },
-    {
-      "name": "mkv ok",
-      "command": "ffmpeg -i \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\длинное видео_1.mov\" -preset medium -c:a copy \"D:\\Educational activities\\Proga\\university_labs\\proga\\PY_FFMPEG_GUI\\FFMPEG_GUI_v2\\длинное видео_1_converted.mkv\""
-    }
   ]
 }

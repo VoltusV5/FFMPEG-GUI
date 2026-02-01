@@ -1,44 +1,41 @@
-"""Класс для элемента очереди кодирования"""
+"""Элемент очереди кодирования."""
+
 
 class QueueItem:
-    """Представляет один файл в очереди кодирования"""
-    
-    # Статусы обработки
-    STATUS_WAITING = "waiting"      # ⏳ Ожидание запуска
-    STATUS_PROCESSING = "processing"  # 🔄 В процессе
-    STATUS_SUCCESS = "success"      # ✅ Успех
-    STATUS_ERROR = "error"          # ❌ Ошибка
-    STATUS_PAUSED = "paused"         # ⏸ Приостановлено
-    
-    def __init__(self, file_path):
-        self.file_path = file_path  # Полный путь к входному файлу
-        # По умолчанию для файла используется пресет "default"
-        # (перекодирование без изменения параметров, только другое имя файла)
-        self.preset_name = "default"     # Имя пресета: "default", пользовательский или "custom"
-        self.status = QueueItem.STATUS_WAITING
-        self.progress = 0            # 0-100
-        self.output_file = ""        # Путь к выходному файлу
-        self.error_message = ""      # Сообщение об ошибке (если есть)
-        self.output_renamed = False  # True, если выходной путь был изменён из-за существующего файла
-        self.output_chosen_by_user = False  # True, если путь выбран вручную — не добавлять _1 при существующем файле
+    STATUS_WAITING = "waiting"
+    STATUS_PROCESSING = "processing"
+    STATUS_SUCCESS = "success"
+    STATUS_ERROR = "error"
+    STATUS_PAUSED = "paused"
 
-        # Обрезка / склейка: области (start_sec, end_sec), которые остаются в финальном видео
-        self.keep_segments = []      # [(start, end), ...] в секундах
-        self.trim_start_sec = None   # Начало текущей области (кнопка In)
-        self.trim_end_sec = None     # Конец текущей области (кнопка Out)
-        
-        # Параметры кодирования (могут быть из пресета или заданы вручную для файла)
-        # Значения:
-        # - "default"  – использовать параметры по умолчанию (как базовая команда)
-        # - "current"  – не менять этот параметр относительно исходного файла
-        # - конкретные значения, например "libx264", "mkv", "1920:1080" и т.п.
+    STATUS_LABELS = {
+        STATUS_WAITING: "⏳ Ожидание",
+        STATUS_PROCESSING: "🔄 В процессе",
+        STATUS_SUCCESS: "✅ Успех",
+        STATUS_ERROR: "❌ Ошибка",
+        STATUS_PAUSED: "⏸ Приостановлено",
+    }
+
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.preset_name = "default"
+        self.status = QueueItem.STATUS_WAITING
+        self.progress = 0
+        self.output_file = ""
+        self.error_message = ""
+        self.output_renamed = False
+        self.output_chosen_by_user = False
+
+        self.keep_segments = []
+        self.trim_start_sec = None
+        self.trim_end_sec = None
+
         self.codec = "default"
         self.container = "default"
         self.resolution = "default"
         self.custom_resolution = ""
         self.audio_codec = "current"
 
-        # Основные настройки (0 или "" = не задано / по умолчанию)
         self.crf = 0
         self.bitrate = 0
         self.fps = 0
@@ -49,22 +46,24 @@ class QueueItem:
         self.pixel_format = ""
         self.tune = ""
         self.threads = 0
-        self.keyint = 0   # 0 = не задано, >0 = значение -g для FFmpeg
+        self.keyint = 0
         self.tag_hvc1 = False
         self.vf_lanczos = False
-        self.extra_args = ""  # Доп. параметры FFmpeg, сохраняемые в пресет
-        
-        # Для паузы на Windows
-        self.encoding_duration = 0   # Время кодирования до паузы
-        self.video_duration = 0      # Длительность видео
+        self.extra_args = ""
 
-        # Команда ffmpeg, привязанная к КОНКРЕТНОМУ элементу очереди
-        # Это нужно, чтобы пользователь мог отредактировать команду для одного файла,
-        # переключиться на другие файлы, а затем вернуться и увидеть свои правки.
-        self.command = ""                    # Последняя отображённая команда для этого файла
-        self.command_manually_edited = False # Флаг: команда редактировалась вручную
-        self.last_generated_command = ""     # Последняя автоматически сгенерированная команда
-    
+        self.encoding_duration = 0
+        self.video_duration = 0
+        self.video_fps = 0
+        self.total_frames = 0
+        self.processed_frames = 0
+        self.has_audio = None
+        self.no_audio_warning_shown = False
+        self.concat_audio_warning_shown = False
+
+        self.command = ""
+        self.command_manually_edited = False
+        self.last_generated_command = ""
+
     def setPreset(self, preset_data):
         """Устанавливает параметры из пресета"""
         if preset_data:
@@ -88,17 +87,10 @@ class QueueItem:
             v = preset_data.get('vf_lanczos', False)
             self.vf_lanczos = (v is True) or (str(v).strip() == "1")
             self.extra_args = preset_data.get('extra_args', '') or ''
-    
+
     def getStatusText(self):
         """Возвращает текстовое представление статуса"""
-        status_map = {
-            QueueItem.STATUS_WAITING: "⏳ Ожидание",
-            QueueItem.STATUS_PROCESSING: "🔄 В процессе",
-            QueueItem.STATUS_SUCCESS: "✅ Успех",
-            QueueItem.STATUS_ERROR: "❌ Ошибка",
-            QueueItem.STATUS_PAUSED: "⏸ Приостановлено"
-        }
-        base = status_map.get(self.status, "❓ Неизвестно")
+        base = self.STATUS_LABELS.get(self.status, "❓ Неизвестно")
         if getattr(self, "output_renamed", False) and self.status in (QueueItem.STATUS_PROCESSING, QueueItem.STATUS_SUCCESS):
             if self.status == QueueItem.STATUS_SUCCESS:
                 return "✅ Успех (переименован)"
