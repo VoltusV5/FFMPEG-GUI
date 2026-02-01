@@ -1,4 +1,3 @@
-import sys
 import os
 import platform
 import shlex
@@ -6,14 +5,34 @@ import re
 import json
 import shutil
 import logging
-from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog, 
+import time
+from constants import (
+    CONFIG_PRESETS_XML,
+    WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
+    HEIGHT_PRESET_EDITOR_CONTAINER, HEIGHT_PRESET_EDITOR_LAYOUT, HEIGHT_BUTTON_PRESET,
+    HEIGHT_TRIM_SEGMENT_BAR, TRIM_BAR_MIN_WIDTH, TRIM_BAR_RADIUS, TRIM_BAR_IN_MARK_MIN,
+    TRIM_BAR_IN_MARK_MAX, TRIM_BAR_IN_MARK_DIV,
+    COLOR_BG_STRIP, COLOR_KEEP_SEGMENT, COLOR_TRIM_ACCENT,
+    COLOR_DROP_BORDER, COLOR_DROP_BG, COLOR_DROP_LABEL, COLOR_DROP_FONT_SIZE,
+    STYLE_RUN_BUTTON, STYLE_ABORT_BUTTON, STYLE_CONVERT_BUTTON,
+    QUEUE_TABLE_COLUMN_COUNT, QUEUE_TABLE_COLUMN_WIDTHS_WITH_ROWS, QUEUE_TABLE_COLUMN_WIDTHS_EMPTY,
+    PRESETS_TABLE_COLUMN_COUNT, PRESETS_TABLE_DELETE_COLUMN_WIDTH,
+    MAX_DISPLAY_NAME_LENGTH, VIDEO_UPDATE_INTERVAL_MS, PROCESS_NEXT_DELAY_MS,
+    ETA_DELAY_SECONDS, ETA_SMOOTHING_ALPHA, PROGRESS_MAX, PROGRESS_MIN,
+    FRAME_STEP_MS, GRID_SPACING, LABEL_MIN_WIDTH, HEIGHT_WARNINGS_EXTRA,
+    GRID_MARGINS_WARNINGS, GRID_SPACING_WARNINGS, COL0_SPACING, CONTAINER_LAYOUT_SPACING,
+    JSON_ENCODING, JSON_INDENT,
+    AUDIO_CODEC_MAP, AUDIO_FORMATS, AUDIO_QUALITY_OPTIONS,
+    CONFIG_CUSTOM_OPTIONS, CONFIG_SAVED_COMMANDS, CONFIG_APP_CONFIG,
+)
+from PySide6.QtWidgets import (QMainWindow, QFileDialog, QMessageBox, QInputDialog,
                                QVBoxLayout, QTableWidgetItem, QProgressBar, QPushButton,
                                QHeaderView, QAbstractItemView, QButtonGroup, QWidget,
                                QStyleOptionSlider, QStyle, QMenu, QHBoxLayout, QLabel,
-                               QSpinBox, QComboBox, QCheckBox, QLineEdit, QScrollArea, QFrame,
+                               QSpinBox, QComboBox, QCheckBox, QLineEdit, QFrame,
                                QGridLayout, QTabWidget, QSizePolicy)
-from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QMimeData, QRectF, QEvent
-from PySide6.QtGui import QGuiApplication, QDragEnterEvent, QDropEvent, QPainter, QColor, QBrush, QFont, QCloseEvent
+from PySide6.QtCore import QProcess, QUrl, Qt, QTimer, QRectF, QEvent
+from PySide6.QtGui import QGuiApplication, QPainter, QColor, QCloseEvent
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
@@ -27,8 +46,8 @@ class TrimSegmentBar(QWidget):
     """Полоска под слайдером: подсвечивает области обрезки (зелёный — добавленные, синий — текущий in–out)."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(14)
-        self.setMinimumWidth(100)
+        self.setFixedHeight(HEIGHT_TRIM_SEGMENT_BAR)
+        self.setMinimumWidth(TRIM_BAR_MIN_WIDTH)
         self.duration_sec = 0.0
         self.keep_segments = []  # [(start, end), ...]
         self.trim_start_sec = None
@@ -49,11 +68,9 @@ class TrimSegmentBar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        radius = min(4, h // 2)
+        radius = min(TRIM_BAR_RADIUS, h // 2)
         painter.setPen(Qt.PenStyle.NoPen)
-        # Фон — тёмно-серая полоска под тему
-        painter.fillRect(0, 0, w, h, QColor(0x40, 0x40, 0x40))
-        # Добавленные области склейки — приглушённый зелёный, скруглённые края
+        painter.fillRect(0, 0, w, h, QColor(*COLOR_BG_STRIP))
         for start, end in self.keep_segments:
             if end <= start:
                 continue
@@ -64,9 +81,8 @@ class TrimSegmentBar(QWidget):
             if x2 > x1:
                 seg_w = x2 - x1
                 r = min(radius, seg_w // 2, h // 2)
-                painter.setBrush(QColor(56, 142, 60))
+                painter.setBrush(QColor(*COLOR_KEEP_SEGMENT))
                 painter.drawRoundedRect(QRectF(x1, 0, seg_w, h), r, r)
-        # Текущий промежуток in–out — акцентный синий, скруглённые края
         if self.trim_start_sec is not None and self.trim_end_sec is not None and self.trim_end_sec > self.trim_start_sec:
             x1 = int(w * self.trim_start_sec / self.duration_sec)
             x2 = int(w * self.trim_end_sec / self.duration_sec)
@@ -75,15 +91,79 @@ class TrimSegmentBar(QWidget):
             if x2 > x1:
                 seg_w = x2 - x1
                 r = min(radius, seg_w // 2, h // 2)
-                painter.setBrush(QColor(0x4a, 0x9e, 0xff))
+                painter.setBrush(QColor(*COLOR_TRIM_ACCENT))
                 painter.drawRoundedRect(QRectF(x1, 0, seg_w, h), r, r)
-        # Пометка «In»: если задано только начало промежутка — вертикальная черта или тонкий сегмент до конца
         elif self.trim_start_sec is not None:
             x_in = int(w * self.trim_start_sec / self.duration_sec)
             x_in = max(0, min(x_in, w))
-            painter.setBrush(QColor(0x4a, 0x9e, 0xff))
-            painter.drawRect(x_in, 0, max(2, min(6, w // 100)), h)
+            painter.setBrush(QColor(*COLOR_TRIM_ACCENT))
+            in_w = max(TRIM_BAR_IN_MARK_MIN, min(TRIM_BAR_IN_MARK_MAX, w // TRIM_BAR_IN_MARK_DIV))
+            painter.drawRect(x_in, 0, in_w, h)
         painter.end()
+
+
+class FileDropArea(QFrame):
+    def __init__(self, on_click, on_drop, allowed_exts, parent=None):
+        super().__init__(parent)
+        self._on_click = on_click
+        self._on_drop = on_drop
+        self._allowed_exts = {ext.lower() for ext in (allowed_exts or set())}
+        self.setAcceptDrops(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumHeight(120)
+        self.setStyleSheet(
+            f"QFrame {{"
+            f"  border: 2px dashed {COLOR_DROP_BORDER};"
+            f"  border-radius: 8px;"
+            f"  background-color: {COLOR_DROP_BG};"
+            f"}}"
+        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        label = QLabel("+")
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet(f"color: {COLOR_DROP_LABEL}; font-size: {COLOR_DROP_FONT_SIZE}px; font-weight: bold;")
+        layout.addWidget(label)
+
+    def _firstValidPath(self, urls):
+        for url in urls:
+            path = url.toLocalFile()
+            if not path or not os.path.isfile(path):
+                continue
+            ext = os.path.splitext(path)[1].lower()
+            if not self._allowed_exts or ext in self._allowed_exts:
+                return path
+        return ""
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            path = self._firstValidPath(event.mimeData().urls())
+            if path:
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            path = self._firstValidPath(event.mimeData().urls())
+            if path:
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            path = self._firstValidPath(event.mimeData().urls())
+            if path:
+                self._on_drop(path)
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._on_click()
+        super().mousePressEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -91,15 +171,10 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.setWindowTitle("FFmpeg GUI")
-        self.resize(1425, 970)
-        # Переопределяем стили под тёмную тему (ui_mainwindow генерируется из .ui)
-        self._runButtonStyleStart = (
-            "background-color: #2e7d32; color: white; font-weight: bold; padding: 8px; border: 1px solid #1b5e20;"
-        )
-        self._runButtonStyleAbort = (
-            "background-color: #c62828; color: white; font-weight: bold; padding: 8px; border: 1px solid #b71c1c;"
-        )
+        self.setWindowTitle(WINDOW_TITLE)
+        self.resize(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self._runButtonStyleStart = STYLE_RUN_BUTTON
+        self._runButtonStyleAbort = STYLE_ABORT_BUTTON
         if hasattr(self.ui, 'runButton'):
             self.ui.runButton.setStyleSheet(self._runButtonStyleStart)
         if hasattr(self.ui, 'videoPreviewWidget'):
@@ -117,19 +192,19 @@ class MainWindow(QMainWindow):
         if hasattr(self.ui, 'NextFrame'):
             self.ui.NextFrame.setText("\u2192")
         if hasattr(self.ui, 'presetEditorContainer'):
-            self.ui.presetEditorContainer.setFixedHeight(311)
+            self.ui.presetEditorContainer.setFixedHeight(HEIGHT_PRESET_EDITOR_CONTAINER)
         if hasattr(self.ui, 'verticalLayoutWidget_3'):
-            self.ui.verticalLayoutWidget_3.setFixedHeight(298)
+            self.ui.verticalLayoutWidget_3.setFixedHeight(HEIGHT_PRESET_EDITOR_LAYOUT)
         if hasattr(self.ui, 'createPresetButton'):
-            self.ui.createPresetButton.setMaximumHeight(28)
+            self.ui.createPresetButton.setMaximumHeight(HEIGHT_BUTTON_PRESET)
             self.ui.createPresetButton.setStyleSheet("padding: 4px 10px;")
         if hasattr(self.ui, 'savePresetChangesButton'):
-            self.ui.savePresetChangesButton.setMaximumHeight(28)
+            self.ui.savePresetChangesButton.setMaximumHeight(HEIGHT_BUTTON_PRESET)
             self.ui.savePresetChangesButton.setStyleSheet("padding: 4px 10px;")
         for attr in ("savePresetWithCustomParamsButton", "savePresetCustomParamsButton", "savePresetWithExtraParamsButton"):
             btn = getattr(self.ui, attr, None)
             if btn is not None:
-                btn.setMaximumHeight(28)
+                btn.setMaximumHeight(HEIGHT_BUTTON_PRESET)
                 btn.setStyleSheet("padding: 4px 10px;")
 
         self.ffmpegProcess = QProcess(self)
@@ -141,8 +216,9 @@ class MainWindow(QMainWindow):
         self.customResolutions = []
         self.customAudioCodecs = []
         self._appDir = os.path.dirname(__file__)
-        self._customOptionsPath = os.path.join(self._appDir, "custom_options.json")
-        self._savedCommandsPath = os.path.join(self._appDir, "saved_commands.json")
+        self._customOptionsPath = os.path.join(self._appDir, CONFIG_CUSTOM_OPTIONS)
+        self._savedCommandsPath = os.path.join(self._appDir, CONFIG_SAVED_COMMANDS)
+        self._appConfigPath = os.path.join(self._appDir, CONFIG_APP_CONFIG)
         self._configWriteWarningsShown = set()
         self._ffmpegWarningShown = False
         self._ffprobeWarningShown = False
@@ -172,17 +248,18 @@ class MainWindow(QMainWindow):
         self._queueProgressTimer = QTimer(self)
         self._queueProgressTimer.timeout.connect(self._tickQueueProgress)
         self._suppressPresetEditorUpdates = False
+        self._etaDelaySeconds = ETA_DELAY_SECONDS
+        self._etaSmoothingAlpha = ETA_SMOOTHING_ALPHA
+        self._etaStartTs = None
+        self._emaSpeed = None
+        self._speedSampleCount = 0
         
         # Переменные для прогресса кодирования
         self.encodingProgress = 0
-        self.totalFrames = 0
         self.currentFrame = 0
         self.videoDuration = 0
         self.encodingDuration = 0
         self.isPaused = False
-
-        # Переменная для общего прогресса очереди
-        self.totalQueueProgress = 0
 
         # Флаги управления остановкой очереди через кнопку "Пауза" / "Завершить кодирование"
         self._pauseStopRequested = False
@@ -317,7 +394,7 @@ class MainWindow(QMainWindow):
         # Таймер для обновления времени видео
         self.videoUpdateTimer = QTimer(self)
         self.videoUpdateTimer.timeout.connect(self.updateVideoTime)
-        self.videoUpdateTimer.start(100)  # Обновление каждые 100мс
+        self.videoUpdateTimer.start(VIDEO_UPDATE_INTERVAL_MS)
         
         # Инициализация статуса
         self.updateStatus("Готов")
@@ -333,6 +410,8 @@ class MainWindow(QMainWindow):
         self._audioConverterWidget = self._createAudioConverterPage()
         self._tabWidget.addTab(self._audioConverterWidget, "Аудио конвертер")
         self.setCentralWidget(self._tabWidget)
+        self._loadAppConfig()
+        self._tabWidget.currentChanged.connect(self._saveAppConfig)
 
         self._warnIfConfigPathNotWritable()
         self._checkToolsAvailability()
@@ -346,6 +425,10 @@ class MainWindow(QMainWindow):
         title = QLabel("Перекодировать видео в аудио")
         title.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(title)
+
+        v2a_exts = {".mp4", ".mkv", ".avi", ".mov", ".flv", ".wmv", ".webm"}
+        self._v2aDropArea = FileDropArea(self._v2aBrowseInput, self._v2aSetInputPath, v2a_exts, page)
+        layout.addWidget(self._v2aDropArea)
 
         # Входной файл
         input_row = QHBoxLayout()
@@ -368,30 +451,22 @@ class MainWindow(QMainWindow):
         out_row.addWidget(self._v2aOutputEdit)
         layout.addLayout(out_row)
 
-        # Формат: mp3, wav, m4a, flac, ogg
         format_row = QHBoxLayout()
         format_row.addWidget(QLabel("Формат:"))
         self._v2aFormatGroup = QButtonGroup(page)
-        for name, ext in [("MP3", "mp3"), ("WAV", "wav"), ("M4A", "m4a"), ("FLAC", "flac"), ("OGG", "ogg")]:
+        for name, ext in AUDIO_FORMATS:
             btn = QPushButton(name)
             btn.setCheckable(True)
             self._v2aFormatGroup.addButton(btn)
             format_row.addWidget(btn)
-        self._v2aFormatGroup.buttons()[0].setChecked(True)  # MP3 по умолчанию
+        self._v2aFormatGroup.buttons()[0].setChecked(True)
         self._v2aFormatGroup.buttonClicked.connect(lambda: self._v2aUpdateOutputPath())
         layout.addLayout(format_row)
 
-        # Качество: текущего файла: 64 / 128 / 192 / 320 kbps
         quality_row = QHBoxLayout()
         quality_row.addWidget(QLabel("Качество:"))
         self._v2aQualityGroup = QButtonGroup(page)
-        for text, val in [
-            ("Текущего файла", "copy"),
-            ("320 kbps", "320"),
-            ("192 kbps", "192"),
-            ("128 kbps", "128"),
-            ("64 kbps", "64"),
-        ]:
+        for text, val in AUDIO_QUALITY_OPTIONS:
             btn = QPushButton(text)
             btn.setCheckable(True)
             btn.setProperty("v2a_quality", val)
@@ -409,7 +484,7 @@ class MainWindow(QMainWindow):
         # Кнопки Конвертировать и Открыть в папке
         btn_row = QHBoxLayout()
         self._v2aConvertBtn = QPushButton("Конвертировать")
-        self._v2aConvertBtn.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold; padding: 8px;")
+        self._v2aConvertBtn.setStyleSheet(STYLE_CONVERT_BUTTON)
         self._v2aConvertBtn.clicked.connect(self._v2aConvert)
         btn_row.addWidget(self._v2aConvertBtn)
         self._v2aOpenFolderBtn = QPushButton("Открыть в папке")
@@ -449,10 +524,28 @@ class MainWindow(QMainWindow):
             "Видео (*.mp4 *.mkv *.avi *.mov *.flv *.wmv *.webm)"
         )
         if path:
-            self._v2aInputEdit.setText(path)
-            self._v2aUpdateOutputPath()
-            self._v2aOpenFolderBtn.setEnabled(False)
-            self._v2aProgressBar.setVisible(False)
+            self._v2aSetInputPath(path)
+
+    def _v2aSetInputPath(self, path):
+        if not path:
+            return
+        self._v2aInputEdit.setText(path)
+        self._v2aUpdateOutputPath()
+        self._v2aOpenFolderBtn.setEnabled(False)
+        self._v2aProgressBar.setVisible(False)
+
+    def _computeOutputPathForExtension(self, input_path, ext):
+        """Строит выходной путь: та же папка, то же имя с новым расширением; при коллизии добавляет (1), (2)…"""
+        if not input_path or not ext:
+            return ""
+        base = os.path.splitext(os.path.basename(input_path))[0]
+        dir_path = os.path.dirname(input_path)
+        out_path = os.path.normpath(os.path.join(dir_path, base + "." + ext))
+        counter = 0
+        while os.path.exists(out_path):
+            counter += 1
+            out_path = os.path.normpath(os.path.join(dir_path, f"{base} ({counter})." + ext))
+        return out_path
 
     def _v2aUpdateOutputPath(self):
         inp = self._v2aInputEdit.text().strip()
@@ -460,16 +553,7 @@ class MainWindow(QMainWindow):
             self._v2aOutputEdit.setText("")
             return
         ext = self._v2aGetFormat()
-        base = os.path.splitext(os.path.basename(inp))[0]
-        dir_path = os.path.dirname(inp)
-        out_path = os.path.join(dir_path, base + "." + ext)
-        out_path = os.path.normpath(out_path)
-        counter = 0
-        while os.path.exists(out_path):
-            counter += 1
-            out_path = os.path.join(dir_path, f"{base} ({counter})." + ext)
-            out_path = os.path.normpath(out_path)
-        self._v2aOutputEdit.setText(out_path)
+        self._v2aOutputEdit.setText(self._computeOutputPathForExtension(inp, ext))
 
     def _v2aConvert(self):
         inp = self._v2aInputEdit.text().strip()
@@ -485,15 +569,7 @@ class MainWindow(QMainWindow):
             return
         fmt = self._v2aGetFormat()
         quality = self._v2aGetQuality()
-
-        codec_map = {
-            "mp3": "libmp3lame",
-            "wav": "pcm_s16le",
-            "m4a": "aac",
-            "flac": "flac",
-            "ogg": "libvorbis",
-        }
-        codec = codec_map.get(fmt, "libmp3lame")
+        codec = AUDIO_CODEC_MAP.get(fmt, "libmp3lame")
         args = ["-y", "-i", os.path.normpath(inp), "-vn", "-c:a", codec]
         if quality != "copy":
             args.extend(["-b:a", quality + "k"])
@@ -514,8 +590,8 @@ class MainWindow(QMainWindow):
 
     def _v2aProcessFinished(self, exitCode, exitStatus):
         self._v2aConvertBtn.setEnabled(True)
-        self._v2aProgressBar.setRange(0, 100)
-        self._v2aProgressBar.setValue(100 if exitCode == 0 else 0)
+        self._v2aProgressBar.setRange(PROGRESS_MIN, PROGRESS_MAX)
+        self._v2aProgressBar.setValue(PROGRESS_MAX if exitCode == 0 else PROGRESS_MIN)
         if exitCode == 0:
             self._v2aOpenFolderBtn.setEnabled(True)
             QMessageBox.information(self, "Видео в аудио", "Конвертация завершена.")
@@ -537,18 +613,7 @@ class MainWindow(QMainWindow):
         if not os.path.isdir(out_dir):
             QMessageBox.warning(self, "Видео в аудио", "Папка не найдена.")
             return
-        if platform.system() == "Windows":
-            if os.path.exists(path):
-                os.system(f'explorer /select,"{path}"')
-            else:
-                os.startfile(out_dir)
-        elif platform.system() == "Darwin":
-            if os.path.exists(path):
-                os.system(f'open -R "{path}"')
-            else:
-                os.system(f'open "{out_dir}"')
-        else:
-            os.system(f'xdg-open "{out_dir}"')
+        self._openFolderOrSelectFile(path)
 
     def _createAudioConverterPage(self):
         """Страница «Аудио конвертер»: аудио → аудио, один файл, без очереди."""
@@ -559,6 +624,10 @@ class MainWindow(QMainWindow):
         title = QLabel("Аудио конвертер")
         title.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(title)
+
+        a2a_exts = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".wma", ".opus"}
+        self._a2aDropArea = FileDropArea(self._a2aBrowseInput, self._a2aSetInputPath, a2a_exts, page)
+        layout.addWidget(self._a2aDropArea)
 
         input_row = QHBoxLayout()
         input_row.addWidget(QLabel("Входной файл:"))
@@ -582,7 +651,7 @@ class MainWindow(QMainWindow):
         format_row = QHBoxLayout()
         format_row.addWidget(QLabel("Формат:"))
         self._a2aFormatGroup = QButtonGroup(page)
-        for name, ext in [("MP3", "mp3"), ("WAV", "wav"), ("M4A", "m4a"), ("FLAC", "flac"), ("OGG", "ogg")]:
+        for name, ext in AUDIO_FORMATS:
             btn = QPushButton(name)
             btn.setCheckable(True)
             self._a2aFormatGroup.addButton(btn)
@@ -594,13 +663,7 @@ class MainWindow(QMainWindow):
         quality_row = QHBoxLayout()
         quality_row.addWidget(QLabel("Качество:"))
         self._a2aQualityGroup = QButtonGroup(page)
-        for text, val in [
-            ("Текущего файла", "copy"),
-            ("320 kbps", "320"),
-            ("192 kbps", "192"),
-            ("128 kbps", "128"),
-            ("64 kbps", "64"),
-        ]:
+        for text, val in AUDIO_QUALITY_OPTIONS:
             btn = QPushButton(text)
             btn.setCheckable(True)
             btn.setProperty("a2a_quality", val)
@@ -616,7 +679,7 @@ class MainWindow(QMainWindow):
 
         btn_row = QHBoxLayout()
         self._a2aConvertBtn = QPushButton("Конвертировать")
-        self._a2aConvertBtn.setStyleSheet("background-color: #2e7d32; color: white; font-weight: bold; padding: 8px;")
+        self._a2aConvertBtn.setStyleSheet(STYLE_CONVERT_BUTTON)
         self._a2aConvertBtn.clicked.connect(self._a2aConvert)
         btn_row.addWidget(self._a2aConvertBtn)
         self._a2aOpenFolderBtn = QPushButton("Открыть в папке")
@@ -657,10 +720,15 @@ class MainWindow(QMainWindow):
             "Аудио (*.mp3 *.wav *.m4a *.flac *.ogg *.aac *.wma *.opus);;Все файлы (*.*)"
         )
         if path:
-            self._a2aInputEdit.setText(path)
-            self._a2aUpdateOutputPath()
-            self._a2aOpenFolderBtn.setEnabled(False)
-            self._a2aProgressBar.setVisible(False)
+            self._a2aSetInputPath(path)
+
+    def _a2aSetInputPath(self, path):
+        if not path:
+            return
+        self._a2aInputEdit.setText(path)
+        self._a2aUpdateOutputPath()
+        self._a2aOpenFolderBtn.setEnabled(False)
+        self._a2aProgressBar.setVisible(False)
 
     def _a2aUpdateOutputPath(self):
         inp = self._a2aInputEdit.text().strip()
@@ -668,16 +736,7 @@ class MainWindow(QMainWindow):
             self._a2aOutputEdit.setText("")
             return
         ext = self._a2aGetFormat()
-        base = os.path.splitext(os.path.basename(inp))[0]
-        dir_path = os.path.dirname(inp)
-        out_path = os.path.join(dir_path, base + "." + ext)
-        out_path = os.path.normpath(out_path)
-        counter = 0
-        while os.path.exists(out_path):
-            counter += 1
-            out_path = os.path.join(dir_path, f"{base} ({counter})." + ext)
-            out_path = os.path.normpath(out_path)
-        self._a2aOutputEdit.setText(out_path)
+        self._a2aOutputEdit.setText(self._computeOutputPathForExtension(inp, ext))
 
     def _a2aConvert(self):
         inp = self._a2aInputEdit.text().strip()
@@ -693,14 +752,7 @@ class MainWindow(QMainWindow):
             return
         fmt = self._a2aGetFormat()
         quality = self._a2aGetQuality()
-        codec_map = {
-            "mp3": "libmp3lame",
-            "wav": "pcm_s16le",
-            "m4a": "aac",
-            "flac": "flac",
-            "ogg": "libvorbis",
-        }
-        codec = codec_map.get(fmt, "libmp3lame")
+        codec = AUDIO_CODEC_MAP.get(fmt, "libmp3lame")
         args = ["-y", "-i", os.path.normpath(inp), "-vn", "-c:a", codec]
         if quality != "copy":
             args.extend(["-b:a", quality + "k"])
@@ -721,8 +773,8 @@ class MainWindow(QMainWindow):
 
     def _a2aProcessFinished(self, exitCode, exitStatus):
         self._a2aConvertBtn.setEnabled(True)
-        self._a2aProgressBar.setRange(0, 100)
-        self._a2aProgressBar.setValue(100 if exitCode == 0 else 0)
+        self._a2aProgressBar.setRange(PROGRESS_MIN, PROGRESS_MAX)
+        self._a2aProgressBar.setValue(PROGRESS_MAX if exitCode == 0 else PROGRESS_MIN)
         if exitCode == 0:
             self._a2aOpenFolderBtn.setEnabled(True)
             QMessageBox.information(self, "Аудио конвертер", "Конвертация завершена.")
@@ -744,21 +796,11 @@ class MainWindow(QMainWindow):
         if not os.path.isdir(out_dir):
             QMessageBox.warning(self, "Аудио конвертер", "Папка не найдена.")
             return
-        if platform.system() == "Windows":
-            if os.path.exists(path):
-                os.system(f'explorer /select,"{path}"')
-            else:
-                os.startfile(out_dir)
-        elif platform.system() == "Darwin":
-            if os.path.exists(path):
-                os.system(f'open -R "{path}"')
-            else:
-                os.system(f'open "{out_dir}"')
-        else:
-            os.system(f'xdg-open "{out_dir}"')
+        self._openFolderOrSelectFile(path)
 
     def closeEvent(self, event: QCloseEvent):
         """При закрытии во время кодирования — предупреждение и удаление битого файла при подтверждении."""
+        self._saveAppConfig()
         v2a = getattr(self, "_v2aProcess", None)
         if v2a and v2a.state() != QProcess.NotRunning:
             reply = QMessageBox.question(
@@ -832,7 +874,7 @@ class MainWindow(QMainWindow):
         
         # Настраиваем таблицу
         table = self.ui.queueTableWidget
-        table.setColumnCount(6)
+        table.setColumnCount(QUEUE_TABLE_COLUMN_COUNT)
         table.setHorizontalHeaderLabels([
             "Входной файл", "Выходной файл", "Пресет", "Статус", "Прогресс", "Открыть"
         ])
@@ -871,12 +913,10 @@ class MainWindow(QMainWindow):
         has_rows = table.rowCount() > 0
         if has_rows:
             table.verticalHeader().setVisible(True)
-            # Колонки 0 и 1 уменьшены на 15 px каждая под нумерацию строк
-            widths = (200, 200, 80, 100, 80, 78)
+            widths = QUEUE_TABLE_COLUMN_WIDTHS_WITH_ROWS
         else:
             table.verticalHeader().setVisible(False)
-            # Полная ширина колонок
-            widths = (215, 215, 80, 100, 80, 78)
+            widths = QUEUE_TABLE_COLUMN_WIDTHS_EMPTY
         for col, w in enumerate(widths):
             header.setSectionResizeMode(col, QHeaderView.Fixed)
             table.setColumnWidth(col, w)
@@ -888,7 +928,7 @@ class MainWindow(QMainWindow):
         if not os.path.exists(self._customOptionsPath):
             return
         try:
-            with open(self._customOptionsPath, "r", encoding="utf-8") as f:
+            with open(self._customOptionsPath, "r", encoding=JSON_ENCODING) as f:
                 data = json.load(f)
             self.customContainers = data.get("containers", [])
             if not isinstance(self.customContainers, list):
@@ -917,18 +957,18 @@ class MainWindow(QMainWindow):
                 "resolutions": getattr(self, "customResolutions", []),
                 "audio_codecs": getattr(self, "customAudioCodecs", []),
             }
-            with open(self._customOptionsPath, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            with open(self._customOptionsPath, "w", encoding=JSON_ENCODING) as f:
+                json.dump(data, f, ensure_ascii=False, indent=JSON_INDENT)
         except Exception:
             logger.exception("Ошибка сохранения custom_options")
-            self._warnConfigWriteFailure("custom_options.json")
+            self._warnConfigWriteFailure(CONFIG_CUSTOM_OPTIONS)
 
     def _loadSavedCommands(self):
         """Загружает список сохранённых команд из saved_commands.json. Возвращает список dict с ключами name, command."""
         if not os.path.exists(self._savedCommandsPath):
             return []
         try:
-            with open(self._savedCommandsPath, "r", encoding="utf-8") as f:
+            with open(self._savedCommandsPath, "r", encoding=JSON_ENCODING) as f:
                 data = json.load(f)
             lst = data.get("commands", [])
             if not isinstance(lst, list):
@@ -942,11 +982,11 @@ class MainWindow(QMainWindow):
         commands_list — список dict с ключами name, command."""
         try:
             data = {"commands": commands_list}
-            with open(self._savedCommandsPath, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            with open(self._savedCommandsPath, "w", encoding=JSON_ENCODING) as f:
+                json.dump(data, f, ensure_ascii=False, indent=JSON_INDENT)
         except Exception:
             logger.exception("Ошибка сохранения saved_commands")
-            self._warnConfigWriteFailure("saved_commands.json")
+            self._warnConfigWriteFailure(CONFIG_SAVED_COMMANDS)
 
     def _showCustomContainerMenu(self):
         """Показывает выпадающее меню: сохранённые контейнеры + «Добавить»."""
@@ -1193,7 +1233,7 @@ class MainWindow(QMainWindow):
 
         # Таблица пресетов
         table = self.ui.presetsTableWidget
-        table.setColumnCount(4)
+        table.setColumnCount(PRESETS_TABLE_COLUMN_COUNT)
         table.setHorizontalHeaderLabels([
             "Название", "Описание",
             "Удалить", "Применить"
@@ -1204,8 +1244,8 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.Fixed)
         table.setColumnWidth(0, 125)  # Название
-        table.setColumnWidth(1, 280)  # Описание
-        table.setColumnWidth(2, 70)   # Удалить
+        table.setColumnWidth(1, 278)  # Описание
+        table.setColumnWidth(2, PRESETS_TABLE_DELETE_COLUMN_WIDTH)
         table.setColumnWidth(3, 88)   # Применить
 
         # Группа кнопок для видеокодека
@@ -1291,9 +1331,8 @@ class MainWindow(QMainWindow):
         # сетка для выравнивания 3 строк (CRF–Bitrate–FPS, аудио–частота–keyint, profile–pixel–tune)
         parent_4 = self.ui.verticalLayoutWidget_4
         grid = QGridLayout()
-        grid.setSpacing(8)
-        # Ширины колонок: подписи и поля в одну колонку
-        label_w = 100
+        grid.setSpacing(GRID_SPACING)
+        label_w = LABEL_MIN_WIDTH
         field_w = 72
 
         # Строка 0: CRF — Bitrate — FPS
@@ -1382,7 +1421,7 @@ class MainWindow(QMainWindow):
         col0_widget = QWidget(parent_4)
         col0_layout = QVBoxLayout(col0_widget)
         col0_layout.setContentsMargins(0, 0, 0, 0)
-        col0_layout.setSpacing(4)
+        col0_layout.setSpacing(COL0_SPACING)
         self._checkTagHvc1 = QCheckBox(parent_4)
         self._checkTagHvc1.setText("-tag:v hvc1")
         self._checkTagHvc1.setToolTip("Для совместимости HEVC")
@@ -1422,11 +1461,11 @@ class MainWindow(QMainWindow):
 
         # Единый блок предупреждений под параметрами (между параметрами и командой FFmpeg)
         self._warningsExtraContainer = QWidget(self.ui.presetSettingsContainer)
-        self._warningsExtraContainer.setMaximumHeight(100)
+        self._warningsExtraContainer.setMaximumHeight(HEIGHT_WARNINGS_EXTRA)
         self._warningsExtraContainer.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
         self._warningsExtraLayout = QVBoxLayout(self._warningsExtraContainer)
-        self._warningsExtraLayout.setContentsMargins(0, 8, 0, 0)
-        self._warningsExtraLayout.setSpacing(4)
+        self._warningsExtraLayout.setContentsMargins(*GRID_MARGINS_WARNINGS)
+        self._warningsExtraLayout.setSpacing(GRID_SPACING_WARNINGS)
 
         self._warningLabel = QLabel("")
         self._warningLabel.setStyleSheet("color: #ff6666;")
@@ -1444,7 +1483,7 @@ class MainWindow(QMainWindow):
         if container_layout is None:
             container_layout = QVBoxLayout(self.ui.presetSettingsContainer)
             container_layout.setContentsMargins(0, 0, 0, 0)
-            container_layout.setSpacing(6)
+            container_layout.setSpacing(CONTAINER_LAYOUT_SPACING)
             container_layout.addWidget(self.ui.verticalLayoutWidget_4, 1)
         container_layout.addWidget(self._warningsExtraContainer, 0)
 
@@ -1714,7 +1753,7 @@ class MainWindow(QMainWindow):
             # Показываем только название файла с расширением.
             # Длинные имена обрезаем до 25 символов и добавляем '...'.
             full_input_name = os.path.basename(item.file_path) if item.file_path else ""
-            input_name = self._truncateNameForDisplay(full_input_name, 25)
+            input_name = self._truncateNameForDisplay(full_input_name, MAX_DISPLAY_NAME_LENGTH)
             file_item = QTableWidgetItem(input_name)
             file_item.setFlags(file_item.flags() & ~Qt.ItemIsEditable)
             file_item.setToolTip(item.file_path)
@@ -1725,7 +1764,7 @@ class MainWindow(QMainWindow):
             # Показываем только имя файла с расширением, обрезая до 25 символов.
             if output_file_path:
                 full_output_name = os.path.basename(output_file_path)
-                display_output = self._truncateNameForDisplay(full_output_name, 25)
+                display_output = self._truncateNameForDisplay(full_output_name, MAX_DISPLAY_NAME_LENGTH)
             else:
                 display_output = ""
             output_item = QTableWidgetItem(display_output)
@@ -1957,6 +1996,8 @@ class MainWindow(QMainWindow):
 
         current_cmd = self.ui.commandDisplay.toPlainText()
         last_generated = getattr(item, "last_generated_command", self.lastGeneratedCommand)
+        prev_manual = getattr(item, "command_manually_edited", False)
+        prev_preset = item.preset_name
 
         if current_cmd != last_generated:
             # Пользователь отошёл от автоматически сгенерированной команды
@@ -1966,10 +2007,14 @@ class MainWindow(QMainWindow):
             # При ручном редактировании считаем, что для файла используется кастомный пресет
             if not (isinstance(item.preset_name, str) and item.preset_name.startswith("cmd:")):
                 item.preset_name = "custom"
+            if (not prev_manual) or (prev_preset != item.preset_name):
+                self.updateQueueTable()
         else:
             # Команда снова совпала с автогенерацией — считаем, что она не редактировалась вручную
             self.commandManuallyEdited = False
             item.command_manually_edited = False
+            if prev_manual:
+                self.updateQueueTable()
 
     def _quotePath(self, path):
         """Всегда оборачивает путь в кавычки для безопасности."""
@@ -1980,13 +2025,7 @@ class MainWindow(QMainWindow):
             return path
         return f'"{path}"'
 
-    def _truncatePathFromStart(self, path, max_length=25):
-        """Показывает последние max_length символов пути"""
-        if len(path) <= max_length:
-            return path
-        return "..." + path[-max_length:]
-
-    def _truncateNameForDisplay(self, name, max_length=25):
+    def _truncateNameForDisplay(self, name, max_length=MAX_DISPLAY_NAME_LENGTH):
         """Возвращает первые max_length символов имени файла + '...' если оно длиннее."""
         if not name:
             return ""
@@ -2591,7 +2630,7 @@ class MainWindow(QMainWindow):
 
     def _isTagHvc1Applicable(self, codec, container_ext):
         return container_ext in ("mp4", "mov", "m4v") and (
-            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+            codec in ("libx265", "hevc", "h265", "copy")
         )
 
     def _setWidgetConflict(self, widget, on):
@@ -2793,7 +2832,7 @@ class MainWindow(QMainWindow):
                 video_extra += ["-b:v", str(item.bitrate) + "k"]
             if getattr(item, "fps", 0) > 0:
                 video_extra += ["-r", str(item.fps)]
-            if codec in ("libx264", "libx265", "libx266", "current", "default", "") and getattr(item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "current", "default", "") and getattr(item, "preset_speed", ""):
                 video_extra += ["-preset", item.preset_speed]
             pl = getattr(item, "profile_level", "") or ""
             if pl:
@@ -2825,7 +2864,7 @@ class MainWindow(QMainWindow):
         tag_hvc1 = getattr(item, "tag_hvc1", False)
         container_ext = container_ext.lower() if isinstance(container_ext, str) else ""
         apply_tag_hvc1 = tag_hvc1 and container_ext in ("mp4", "mov", "m4v") and (
-            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+            codec in ("libx265", "hevc", "h265", "copy")
         )
 
         segments = self._getTrimSegments(item)
@@ -3014,7 +3053,7 @@ class MainWindow(QMainWindow):
                 video_extra += ["-b:v", str(queue_item.bitrate) + "k"]
             if getattr(queue_item, "fps", 0) > 0:
                 video_extra += ["-r", str(queue_item.fps)]
-            if codec in ("libx264", "libx265", "libx266", "current", "default", "") and getattr(queue_item, "preset_speed", ""):
+            if codec in ("libx264", "libx265", "current", "default", "") and getattr(queue_item, "preset_speed", ""):
                 video_extra += ["-preset", queue_item.preset_speed]
             pl = getattr(queue_item, "profile_level", "") or ""
             if pl:
@@ -3045,7 +3084,7 @@ class MainWindow(QMainWindow):
         tag_hvc1 = getattr(queue_item, "tag_hvc1", False)
         container_ext = container_ext.lower() if isinstance(container_ext, str) else ""
         apply_tag_hvc1 = tag_hvc1 and container_ext in ("mp4", "mov", "m4v") and (
-            codec in ("libx265", "libx266", "hevc", "h265", "copy")
+            codec in ("libx265", "hevc", "h265", "copy")
         )
         extra_args = self._getExtraArgsList(getattr(queue_item, "extra_args", ""))
         extra_args = self._filterExtraArgsList(extra_args, queue_item)
@@ -3301,6 +3340,7 @@ class MainWindow(QMainWindow):
         self.encodingDuration = 0
         self.currentFrame = 0
         item.processed_frames = 0
+        self._resetEtaTracking()
         if hasattr(self.ui, 'encodingProgressBar'):
             self.ui.encodingProgressBar.setValue(0)
         
@@ -3386,7 +3426,7 @@ class MainWindow(QMainWindow):
                 "Сохранение пресетов и пользовательских настроек может не работать."
             )
             return
-        paths = (self._customOptionsPath, self._savedCommandsPath, self.presetManager.presets_file)
+        paths = (self._customOptionsPath, self._savedCommandsPath, self._appConfigPath, self.presetManager.presets_file)
         non_writable = [p for p in paths if os.path.exists(p) and not os.access(p, os.W_OK)]
         if non_writable:
             QMessageBox.warning(
@@ -3405,6 +3445,31 @@ class MainWindow(QMainWindow):
             "Ошибка сохранения",
             f"Не удалось сохранить {file_label}. Проверьте права на запись в папке приложения."
         )
+
+    def _loadAppConfig(self):
+        if not os.path.exists(self._appConfigPath):
+            return
+        try:
+            with open(self._appConfigPath, "r", encoding=JSON_ENCODING) as f:
+                data = json.load(f)
+            idx = data.get("last_tab_index")
+            if isinstance(idx, int) and hasattr(self, "_tabWidget"):
+                max_idx = self._tabWidget.count() - 1
+                idx = max(0, min(idx, max_idx))
+                self._tabWidget.setCurrentIndex(idx)
+        except Exception:
+            logger.exception("Ошибка загрузки app_config.json")
+
+    def _saveAppConfig(self):
+        if not hasattr(self, "_tabWidget"):
+            return
+        data = {"last_tab_index": self._tabWidget.currentIndex()}
+        try:
+            with open(self._appConfigPath, "w", encoding=JSON_ENCODING) as f:
+                json.dump(data, f, ensure_ascii=False, indent=JSON_INDENT)
+        except Exception:
+            logger.exception("Ошибка сохранения app_config")
+            self._warnConfigWriteFailure(CONFIG_APP_CONFIG)
 
     def _warnFfprobeMissing(self):
         if self._ffprobeWarningShown:
@@ -3697,6 +3762,10 @@ class MainWindow(QMainWindow):
             centiseconds = int(time_match.group(4))
             self.encodingDuration = hours * 3600 + minutes * 60 + seconds + centiseconds / 100.0
             item.encoding_duration = self.encodingDuration
+            if self._etaStartTs is None:
+                self._etaStartTs = time.monotonic()
+
+        self._updateSpeedFromLog(line)
         
         # Обновляем прогресс
         self.updateEncodingProgress()
@@ -3710,7 +3779,7 @@ class MainWindow(QMainWindow):
         
         if item.video_duration > 0 and self.encodingDuration > 0:
             # Вычисляем процент прогресса
-            progress = min(100, int((self.encodingDuration / item.video_duration) * 100))
+            progress = min(PROGRESS_MAX, int((self.encodingDuration / item.video_duration) * PROGRESS_MAX))
             self.encodingProgress = progress
             item.progress = progress
             
@@ -3734,6 +3803,33 @@ class MainWindow(QMainWindow):
                     timeline_position = int((self.encodingDuration / item.video_duration) * max_value)
                     self.ui.videoTimelineSlider.setValue(timeline_position)
 
+            if item.status == QueueItem.STATUS_PROCESSING:
+                now = time.monotonic()
+                eta_ready = (
+                    self._etaStartTs is not None
+                    and (now - self._etaStartTs) >= self._etaDelaySeconds
+                    and self._emaSpeed is not None
+                    and self._emaSpeed > 0.01
+                )
+                if eta_ready:
+                    remaining = max(0.0, item.video_duration - self.encodingDuration)
+                    eta_seconds = remaining / self._emaSpeed
+                    eta_text = self._formatTime(eta_seconds)
+                    queue_eta_text = None
+                    if all(getattr(it, "video_duration", 0) > 0 for it in self.queue):
+                        remaining_queue = sum(
+                            getattr(it, "video_duration", 0) or 0
+                            for it in self.queue[self.currentQueueIndex + 1:]
+                        )
+                        remaining_queue += remaining
+                        queue_eta_seconds = remaining_queue / self._emaSpeed
+                        queue_eta_text = self._formatTime(queue_eta_seconds)
+                    base = f"Обработка файла {self.currentQueueIndex + 1} из {len(self.queue)}"
+                    if queue_eta_text:
+                        self.updateStatus(f"{base} — осталось: {eta_text}, очередь: {queue_eta_text}")
+                    else:
+                        self.updateStatus(f"{base} — осталось: {eta_text}")
+
         # Общий прогресс обновляем постоянно из логов
         self.updateTotalQueueProgress()
 
@@ -3756,7 +3852,7 @@ class MainWindow(QMainWindow):
                     cur_done = getattr(current_item, "processed_frames", 0) or 0
                     if cur_total > 0:
                         done_frames += min(cur_done, cur_total)
-            percentage = int(min(100.0, (done_frames / total_frames) * 100))
+            percentage = int(min(float(PROGRESS_MAX), (done_frames / total_frames) * PROGRESS_MAX))
             self._setQueueProgressTarget(percentage)
             return
 
@@ -3774,7 +3870,7 @@ class MainWindow(QMainWindow):
                     cur_time = max(0.0, getattr(current_item, "encoding_duration", 0) or 0)
                     if cur_dur > 0:
                         done += min(cur_time, cur_dur)
-            percentage = int(min(100.0, (done / total_duration) * 100))
+            percentage = int(min(float(PROGRESS_MAX), (done / total_duration) * PROGRESS_MAX))
             self._setQueueProgressTarget(percentage)
             return
 
@@ -3788,12 +3884,12 @@ class MainWindow(QMainWindow):
                 current_progress = current_item.progress
         total_progress = completed_files * 100 + current_progress
         max_progress = total_files * 100
-        self._setQueueProgressTarget(int(total_progress / max_progress * 100) if max_progress > 0 else 0)
+        self._setQueueProgressTarget(int(total_progress / max_progress * PROGRESS_MAX) if max_progress > 0 else 0)
 
     def _setQueueProgressTarget(self, value):
         if not hasattr(self.ui, 'totalQueueProgressBar'):
             return
-        value = max(0, min(100, int(value)))
+        value = max(PROGRESS_MIN, min(PROGRESS_MAX, int(value)))
         self._queueProgressMaxValue = max(getattr(self, "_queueProgressMaxValue", 0), value)
         self._queueProgressTarget = self._queueProgressMaxValue
         if not self._queueProgressTimer.isActive():
@@ -3847,24 +3943,13 @@ class MainWindow(QMainWindow):
             self.mediaPlayer.play()
             if hasattr(self.ui, 'videoPlayButton'):
                 self.ui.videoPlayButton.setText("Pause")
-    
-    def stopVideo(self):
-        """Останавливает воспроизведение видео"""
-        if not self.mediaPlayer:
-            return
-        self.mediaPlayer.stop()
-        if hasattr(self.ui, 'videoPlayButton'):
-            self.ui.videoPlayButton.setText("Play")
-
-    # Шаг на один кадр (~33 мс при 30 fps)
-    FRAME_STEP_MS = 33
 
     def stepVideoPreviousFrame(self):
         """Переход на предыдущий кадр"""
         if not self.mediaPlayer or self.videoDuration <= 0:
             return
         pos_ms = self.mediaPlayer.position()
-        self.mediaPlayer.setPosition(max(0, pos_ms - self.FRAME_STEP_MS))
+        self.mediaPlayer.setPosition(max(0, pos_ms - FRAME_STEP_MS))
 
     def stepVideoNextFrame(self):
         """Переход на следующий кадр"""
@@ -3872,7 +3957,7 @@ class MainWindow(QMainWindow):
             return
         pos_ms = self.mediaPlayer.position()
         duration_ms = int(self.videoDuration * 1000)
-        self.mediaPlayer.setPosition(min(duration_ms, pos_ms + self.FRAME_STEP_MS))
+        self.mediaPlayer.setPosition(min(duration_ms, pos_ms + FRAME_STEP_MS))
 
     def setTrimStart(self):
         """Поставить начало оставляемого промежутка (In) на текущем кадре"""
@@ -4050,6 +4135,31 @@ class MainWindow(QMainWindow):
             return f"{hours:02d}:{minutes:02d}:{secs:02d}"
         else:
             return f"{minutes:02d}:{secs:02d}"
+
+    def _resetEtaTracking(self):
+        self._etaStartTs = None
+        self._emaSpeed = None
+        self._speedSampleCount = 0
+
+    def _updateSpeedFromLog(self, line):
+        speed_match = re.search(r'speed=\s*([0-9]*\.?[0-9]+)x', line)
+        if not speed_match:
+            return
+        try:
+            speed = float(speed_match.group(1))
+        except ValueError:
+            return
+        if speed <= 0:
+            return
+        if self._etaStartTs is None:
+            self._etaStartTs = time.monotonic()
+        if self._emaSpeed is None:
+            self._emaSpeed = speed
+            self._speedSampleCount = 1
+            return
+        alpha = self._etaSmoothingAlpha
+        self._emaSpeed = alpha * speed + (1 - alpha) * self._emaSpeed
+        self._speedSampleCount += 1
     
     def togglePauseEncoding(self):
         """Переключает паузу/возобновление кодирования"""
@@ -4145,12 +4255,6 @@ class MainWindow(QMainWindow):
 
         # Запускаем очередь заново с нужного файла
         self.processNextInQueue()
-
-    def _getVideoDuration(self):
-        """Получает длительность видео через FFprobe"""
-        item = self.getSelectedQueueItem()
-        if item:
-            self._getVideoDurationForItem(item)
 
     # Перемещение файлов в очереди (кнопки QueueUp/QueueDown)
 
@@ -4323,7 +4427,7 @@ class MainWindow(QMainWindow):
         # Обновляем статус текущего файла
         if exitCode == 0:
             item.status = QueueItem.STATUS_SUCCESS
-            item.progress = 100
+            item.progress = PROGRESS_MAX
             if getattr(item, "total_frames", 0):
                 item.processed_frames = item.total_frames
             self.ui.logDisplay.append(f"<br><b><font color='green'>✓ Файл обработан успешно: {os.path.basename(item.file_path)}</font></b>")
@@ -4344,7 +4448,7 @@ class MainWindow(QMainWindow):
         
         # Обновляем прогресс-бар
         if hasattr(self.ui, 'encodingProgressBar'):
-            self.ui.encodingProgressBar.setValue(100 if exitCode == 0 else 0)
+            self.ui.encodingProgressBar.setValue(PROGRESS_MAX if exitCode == 0 else PROGRESS_MIN)
         
         # Отключаем кнопку паузы
         if hasattr(self.ui, 'pauseResumeButton'):
@@ -4357,7 +4461,7 @@ class MainWindow(QMainWindow):
         self.currentQueueIndex += 1
         if self.currentQueueIndex < len(self.queue):
             # Небольшая задержка перед следующим файлом
-            QTimer.singleShot(500, self.processNextInQueue)
+            QTimer.singleShot(PROCESS_NEXT_DELAY_MS, self.processNextInQueue)
         else:
             # Все файлы обработаны
             self.currentQueueIndex = -1
@@ -4373,6 +4477,29 @@ class MainWindow(QMainWindow):
         """Обновляет статус в статусбаре"""
         self.ui.statusbar.showMessage(status_text)
     
+    def _openFolderOrSelectFile(self, path):
+        """Открывает папку в проводнике; если path — существующий файл, на Windows/macOS выделяет его."""
+        if not path:
+            return
+        out_dir = os.path.dirname(path) if os.path.isfile(path) else path
+        if not os.path.isdir(out_dir):
+            out_dir = os.path.dirname(path)
+        if not out_dir or not os.path.exists(out_dir):
+            return
+        sys_name = platform.system()
+        if sys_name == "Windows":
+            if os.path.isfile(path) and os.path.exists(path):
+                os.system(f'explorer /select,"{path}"')
+            else:
+                os.startfile(out_dir)
+        elif sys_name == "Darwin":
+            if os.path.isfile(path) and os.path.exists(path):
+                os.system(f'open -R "{path}"')
+            else:
+                os.system(f'open "{out_dir}"')
+        else:
+            os.system(f'xdg-open "{out_dir}"')
+
     def openOutputFolder(self):
         """Открывает папку с выходным файлом в проводнике/файловом менеджере"""
         target_file = ""
@@ -4388,19 +4515,7 @@ class MainWindow(QMainWindow):
         if not os.path.exists(output_dir):
             QMessageBox.warning(self, "Ошибка", f"Папка не существует:\n{output_dir}")
             return
-
-        if platform.system() == "Windows":
-            if os.path.exists(target_file):
-                os.system(f'explorer /select,"{target_file}"')
-            else:
-                os.startfile(output_dir)
-        elif platform.system() == "Darwin":  # macOS
-            if os.path.exists(target_file):
-                os.system(f'open -R "{target_file}"')
-            else:
-                os.system(f'open "{output_dir}"')
-        else:  # Linux
-            os.system(f'xdg-open "{output_dir}"')
+        self._openFolderOrSelectFile(target_file)
 
 
     # Новые методы создания/сохранения пресетов через редактор
@@ -4466,7 +4581,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Ошибка сохранения",
-                "Не удалось сохранить presets.xml. Проверьте права на запись в папке приложения."
+                f"Не удалось сохранить {CONFIG_PRESETS_XML}. Проверьте права на запись в папке приложения."
             )
             return
         self.currentPresetName = name
@@ -4495,7 +4610,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Ошибка сохранения",
-                "Не удалось сохранить presets.xml. Проверьте права на запись в папке приложения."
+                f"Не удалось сохранить {CONFIG_PRESETS_XML}. Проверьте права на запись в папке приложения."
             )
             return
         self.currentPresetName = name
@@ -4541,7 +4656,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Ошибка сохранения",
-                "Не удалось сохранить presets.xml. Проверьте права на запись в папке приложения."
+                f"Не удалось сохранить {CONFIG_PRESETS_XML}. Проверьте права на запись в папке приложения."
             )
             return
         self.currentPresetName = name
@@ -4632,7 +4747,7 @@ class MainWindow(QMainWindow):
     def _mergeSavedCommandsFromFile(self, file_path):
         """Сливает команды FFmpeg из файла JSON, не перезаписывая существующие имена."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, "r", encoding=JSON_ENCODING) as f:
                 data = json.load(f)
             incoming = data.get("commands", [])
             if not isinstance(incoming, list):
@@ -4658,7 +4773,7 @@ class MainWindow(QMainWindow):
     def _mergeCustomOptionsFromFile(self, file_path):
         """Сливает кастомные параметры (контейнеры, кодеки, разрешения, аудио-кодеки)."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, "r", encoding=JSON_ENCODING) as f:
                 data = json.load(f)
             containers = data.get("containers", [])
             codecs = data.get("codecs", [])
@@ -4758,64 +4873,14 @@ class MainWindow(QMainWindow):
         self._saveSavedCommands(commands)
         QMessageBox.information(self, "Удалено", f"Команда «{name}» удалена из списка сохранённых.")
 
-    def exportSelectedPreset(self):
-        """Экспорт выбранного в таблице пресета в XML файл."""
-        if not hasattr(self.ui, 'presetsTableWidget'):
-            return
-        table = self.ui.presetsTableWidget
-        row = table.currentRow()
-        if row < 0:
-            QMessageBox.information(self, "Пресеты", "Сначала выберите пресет в таблице.")
-            return
-        name_item = table.item(row, 0)
-        if not name_item:
-            return
-        preset_name = name_item.text()
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Экспорт пресета",
-            f"{preset_name}.xml",
-            "XML файлы (*.xml)"
-        )
-        if not file_path:
-            return
-        if self.presetManager.exportPresetToFile(preset_name, file_path):
-            QMessageBox.information(self, "Успех", f"Пресет \"{preset_name}\" экспортирован в:\n{file_path}")
-        else:
-            QMessageBox.critical(self, "Ошибка", "Не удалось экспортировать пресет.")
-    
-    def importPresetFromFile(self):
-        """Импорт одного пресета из XML файла и обновление таблицы."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Импорт пресета",
-            "",
-            "XML файлы (*.xml)"
-        )
-        if not file_path:
-            return
-        ok = self.presetManager.importPresetFromFile(file_path)
-        if ok:
-            QMessageBox.information(self, "Успех", "Пресет успешно импортирован.")
-            self.refreshPresetsTable()
-        else:
-            QMessageBox.critical(self, "Ошибка", "Не удалось импортировать пресет.")
 
     def openFileLocation(self, file_path):
-        """Открывает папку с указанным файлом в проводнике."""
+        """Открывает папку с указанным файлом в проводнике (и выделяет файл, где поддерживается)."""
         if not file_path or not os.path.exists(file_path):
             QMessageBox.warning(self, "Ошибка", "Файл не найден.")
             return
-
         output_dir = os.path.dirname(file_path)
         if not os.path.exists(output_dir):
             QMessageBox.warning(self, "Ошибка", f"Папка не существует:\n{output_dir}")
             return
-
-        # Открываем папку в зависимости от ОС
-        if platform.system() == "Windows":
-            os.startfile(output_dir)
-        elif platform.system() == "Darwin":  # macOS
-            os.system(f'open "{output_dir}"')
-        else:  # Linux
-            os.system(f'xdg-open "{output_dir}"')
+        self._openFolderOrSelectFile(file_path)

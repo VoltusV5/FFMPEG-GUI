@@ -1,7 +1,25 @@
 import sys
+import os
+import logging
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QPalette, QColor
+from constants import (
+    COLOR_WINDOW, COLOR_WINDOW_TEXT, COLOR_BASE, COLOR_ALTERNATE_BASE,
+    COLOR_BUTTON, COLOR_HIGHLIGHT, COLOR_HIGHLIGHTED_TEXT,
+)
 from mainwindow import MainWindow
+
+
+def setup_logging():
+    log_path = os.path.join(os.path.dirname(__file__), "app.log")
+    root = logging.getLogger()
+    if root.handlers:
+        return
+    root.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(formatter)
+    root.addHandler(handler)
 
 # Тёмно-серая тема: фон #2b2b2b, панели #363636, акцент #4a9eff, текст #e0e0e0
 DARK_STYLESHEET = """
@@ -205,17 +223,18 @@ DARK_STYLESHEET = """
 """
 
 if __name__ == "__main__":
+    setup_logging()
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor("#2b2b2b"))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor("#e0e0e0"))
-    palette.setColor(QPalette.ColorRole.Base, QColor("#3c3c3c"))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#363636"))
-    palette.setColor(QPalette.ColorRole.Button, QColor("#404040"))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#e0e0e0"))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor("#4a9eff"))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    palette.setColor(QPalette.ColorRole.Window, QColor(COLOR_WINDOW))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(COLOR_WINDOW_TEXT))
+    palette.setColor(QPalette.ColorRole.Base, QColor(COLOR_BASE))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(COLOR_ALTERNATE_BASE))
+    palette.setColor(QPalette.ColorRole.Button, QColor(COLOR_BUTTON))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(COLOR_WINDOW_TEXT))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(COLOR_HIGHLIGHT))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(COLOR_HIGHLIGHTED_TEXT))
     app.setPalette(palette)
     app.setStyleSheet(DARK_STYLESHEET)
     window = MainWindow()
