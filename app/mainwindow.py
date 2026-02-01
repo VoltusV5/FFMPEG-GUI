@@ -1,5 +1,4 @@
 import os
-import platform
 import logging
 from app.constants import (
     WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -10,8 +9,9 @@ from app.constants import (
     CONFIG_CUSTOM_OPTIONS, CONFIG_SAVED_COMMANDS, CONFIG_APP_CONFIG,
 )
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QSpinBox, QComboBox, QTabWidget
-from PySide6.QtCore import QProcess, QTimer, QEvent
+from PySide6.QtCore import QProcess, QTimer, QEvent, QUrl
 from PySide6.QtGui import QGuiApplication, QCloseEvent
+from PySide6.QtGui import QDesktopServices
 from ui.ui_mainwindow import Ui_MainWindow  # Сгенерированный из .ui интерфейс
 from models.presetmanager import PresetManager
 from mixins.config_warnings import ConfigWarningsMixin
@@ -350,27 +350,15 @@ class MainWindow(QueueUIMixin, EncodingMixin, PresetEditorUIMixin, VideoPreviewM
         self.ui.statusbar.showMessage(status_text)
 
     def _openFolderOrSelectFile(self, path):
-        """Открывает папку в проводнике; если path — существующий файл, на Windows/macOS выделяет его."""
+        """Открывает папку в системном файловом менеджере (через Qt, без os.system/explorer)."""
         if not path:
             return
-        out_dir = os.path.dirname(path) if os.path.isfile(path) else path
-        if not os.path.isdir(out_dir):
-            out_dir = os.path.dirname(path)
-        if not out_dir or not os.path.exists(out_dir):
+        folder = os.path.dirname(path) if os.path.isfile(path) else path
+        if not os.path.isdir(folder):
+            folder = os.path.dirname(path)
+        if not folder or not os.path.exists(folder):
             return
-        sys_name = platform.system()
-        if sys_name == "Windows":
-            if os.path.isfile(path) and os.path.exists(path):
-                os.system(f'explorer /select,"{path}"')
-            else:
-                os.startfile(out_dir)
-        elif sys_name == "Darwin":
-            if os.path.isfile(path) and os.path.exists(path):
-                os.system(f'open -R "{path}"')
-            else:
-                os.system(f'open "{out_dir}"')
-        else:
-            os.system(f'xdg-open "{out_dir}"')
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(folder)))
 
     def openOutputFolder(self):
         """Открывает папку с выходным файлом в проводнике/файловом менеджере"""
@@ -395,7 +383,7 @@ class MainWindow(QueueUIMixin, EncodingMixin, PresetEditorUIMixin, VideoPreviewM
 
 
     def openFileLocation(self, file_path):
-        """Открывает папку с указанным файлом в проводнике (и выделяет файл, где поддерживается)."""
+        """Открывает папку с указанным файлом в системном файловом менеджере."""
         if not file_path or not os.path.exists(file_path):
             QMessageBox.warning(self, "Ошибка", "Файл не найден.")
             return

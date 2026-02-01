@@ -7,7 +7,6 @@ import re
 import json
 import time
 import logging
-import subprocess
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import QProcess, QTimer
 
@@ -988,27 +987,36 @@ class EncodingMixin:
             return
         try:
             ffprobe_executable = "ffprobe"
-            try:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
+            app_dir = getattr(self, '_appDir', None)
+            if app_dir:
                 if platform.system() == "Windows":
-                    local_ffprobe = os.path.join(base_dir, "ffprobe.exe")
+                    local_ffprobe = os.path.join(app_dir, "ffprobe.exe")
                 else:
-                    local_ffprobe = os.path.join(base_dir, "ffprobe")
+                    local_ffprobe = os.path.join(app_dir, "ffprobe")
                 if os.path.exists(local_ffprobe):
                     ffprobe_executable = local_ffprobe
-            except Exception:
-                pass
-            cmd = [
-                ffprobe_executable, '-v', 'error',
+            args = [
+                '-v', 'error',
                 '-show_entries', 'format=duration:stream=codec_type,avg_frame_rate,nb_frames',
                 '-of', 'json',
                 item.file_path
             ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
+            proc = QProcess()
+            proc.start(ffprobe_executable, args)
+            if not proc.waitForFinished(5000):
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return
+            if proc.exitStatus() != QProcess.ExitStatus.NormalExit or proc.exitCode() != 0:
+                return
+            raw = proc.readAllStandardOutput().data()
+            stdout = raw.decode('utf-8', errors='replace') if raw else ""
+            if stdout:
                 data = {}
                 try:
-                    data = json.loads(result.stdout or "{}")
+                    data = json.loads(stdout)
                 except Exception:
                     data = {}
                 duration_str = (data.get("format") or {}).get("duration", "") or ""

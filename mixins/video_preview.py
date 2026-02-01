@@ -36,6 +36,7 @@ class VideoPreviewMixin:
             self.mediaPlayer.durationChanged.connect(self.onVideoDurationChanged)
             self.mediaPlayer.positionChanged.connect(self.onVideoPositionChanged)
             self.mediaPlayer.playbackStateChanged.connect(self.onVideoPlaybackStateChanged)
+            self.mediaPlayer.mediaStatusChanged.connect(self.onVideoMediaStatusChanged)
 
             self.audioOutput.setVolume(1.0)
             self.isMuted = False
@@ -67,16 +68,26 @@ class VideoPreviewMixin:
         self.trimSegmentBar.updateSegments(duration, keep, start, end)
 
     def loadVideoForPreview(self):
-        """Загружает видео в медиаплеер для предпросмотра"""
+        """Загружает видео в медиаплеер для предпросмотра; после загрузки показывается первый кадр."""
         item = self.getSelectedQueueItem()
         if not self.mediaPlayer or not item:
             return
         try:
+            self.mediaPlayer.stop()
             url = QUrl.fromLocalFile(item.file_path)
             self.mediaPlayer.setSource(url)
             self.inputFile = item.file_path
         except Exception:
             logger.exception("Ошибка загрузки видео")
+
+    def onVideoMediaStatusChanged(self, status):
+        """После загрузки медиа показываем первый кадр (позиция 0, пауза)."""
+        if status == QMediaPlayer.MediaStatus.LoadedMedia or status == QMediaPlayer.MediaStatus.BufferedMedia:
+            if self.mediaPlayer:
+                self.mediaPlayer.setPosition(0)
+                self.mediaPlayer.pause()
+                if hasattr(self.ui, 'videoPlayButton'):
+                    self.ui.videoPlayButton.setText("Play")
 
     def toggleVideoPlayback(self):
         if not self.mediaPlayer:
