@@ -68,7 +68,7 @@ macos.permissions =
 mode = standalone
 
 # specify any extra nuitka arguments (presets/ ? ????? ?? ????????? ??? ????????????)
-extra_args = --quiet --noinclude-qt-translations --include-data-dir=presets=presets --include-data-dir=docs=docs --windows-console-mode=disable
+extra_args = --quiet --noinclude-qt-translations --include-data-dir=presets=presets --include-data-dir=docs=docs --windows-console-mode=disable --output-filename=ffmpeg_gui.exe
 
 [buildozer]
 

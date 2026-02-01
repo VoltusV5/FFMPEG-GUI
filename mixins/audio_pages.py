@@ -271,11 +271,14 @@ class AudioPagesMixin:
         if not path:
             QMessageBox.warning(self, "Видео в аудио", "Нет выходного файла.")
             return
-        out_dir = os.path.dirname(path)
-        if not os.path.isdir(out_dir):
-            QMessageBox.warning(self, "Видео в аудио", "Папка не найдена.")
+        if os.path.exists(path):
+            self._openFolderOrSelectFile(path)
             return
-        self._openFolderOrSelectFile(path)
+        out_dir = os.path.dirname(path)
+        if os.path.isdir(out_dir):
+            self._openFolderOrSelectFile(out_dir)
+            return
+        QMessageBox.warning(self, "Видео в аудио", "Файл и папка не найдены.")
 
     def _createAudioConverterPage(self):
         """Страница «Аудио конвертер»: аудио → аудио, один файл, без очереди."""
@@ -485,8 +488,11 @@ class AudioPagesMixin:
         if not path:
             QMessageBox.warning(self, "Аудио конвертер", "Нет выходного файла.")
             return
-        out_dir = os.path.dirname(path)
-        if not os.path.isdir(out_dir):
-            QMessageBox.warning(self, "Аудио конвертер", "Папка не найдена.")
+        if os.path.exists(path):
+            self._openFolderOrSelectFile(path)
             return
-        self._openFolderOrSelectFile(path)
+        out_dir = os.path.dirname(path)
+        if os.path.isdir(out_dir):
+            self._openFolderOrSelectFile(out_dir)
+            return
+        QMessageBox.warning(self, "Аудио конвертер", "Файл и папка не найдены.")
