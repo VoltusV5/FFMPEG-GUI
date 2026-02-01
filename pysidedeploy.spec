@@ -15,13 +15,13 @@ exec_directory = .
 # path to the project file relative to project_dir
 project_file = 
 
-# application icon
-icon = D:\Educational activities\Proga\university_labs\proga\PY_FFMPEG_GUI\FFMPEG_GUI\venv\Lib\site-packages\PySide6\scripts\deploy_lib\pyside_icon.ico
+# application icon (относительно project_dir; в проекте — icon.ico)
+icon = icon.ico
 
 [python]
 
-# python path
-python_path = D:\Educational activities\Proga\university_labs\proga\PY_FFMPEG_GUI\FFMPEG_GUI\venv\Scripts\python.exe
+# python path (pyside6-deploy при запуске подставит свой; можно оставить пустым и запускать из активированного venv)
+python_path =
 
 # python packages to install
 packages = Nuitka==2.7.11
@@ -39,8 +39,8 @@ qml_files =
 # excluded qml plugin binaries
 excluded_qml_plugins = 
 
-# qt modules used. comma separated
-modules = Core,Gui,Widgets
+# qt modules used. comma separated (Multimedia, MultimediaWidgets — для видеоплеера)
+modules = Core,Gui,Widgets,Multimedia,MultimediaWidgets
 
 # qt plugins used by the application. only relevant for desktop deployment
 # for qt plugins used in android application see [android][plugins]
@@ -96,9 +96,9 @@ local_libs =
 arch = 
 
 [windows]
-company_name = "YourName"
-product_name = "OpenFF_GUI"
+company_name = "FFMPEG_GUI"
+product_name = "FFMPEG GUI"
 file_version = "1.0.0.0"
 product_version = "1.0.0.0"
-icon = "app.ico"
+icon = "icon.ico"
 
